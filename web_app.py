@@ -1,34 +1,42 @@
+import threading
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from settings import settings
 
-app = FastAPI(title="SMC Bot Panel")
+# ایمپورت کردن موتور ربات و حافظه مشترک
+from main import execute_bot_loop
+from shared_state import bot_state
 
-# تنظیم پوشه قالب‌های HTML
+# این بخش ربات را هنگام روشن شدن پنل وب استارت می‌زند
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🌐 پنل وب در حال روشن شدن است...")
+    # روشن کردن موتور اصلی ربات در یک پردازش موازی (Background Thread)
+    bot_thread = threading.Thread(target=execute_bot_loop, daemon=True)
+    bot_thread.start()
+    yield
+    print("🛑 سرور وب خاموش شد.")
+
+app = FastAPI(title="SMC Bot Panel", lifespan=lifespan)
 templates = Jinja2Templates(directory="templates")
 
 def verify_cookie(request: Request):
-    """بررسی می‌کند که آیا کاربر لاگین کرده است یا خیر"""
     if request.cookies.get("auth_session") != "authenticated":
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
     return True
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    # فرمت جدید و استاندارد FastAPI برای رندر قالب‌ها
     return templates.TemplateResponse(request=request, name="login.html", context={"error": None})
 
 @app.post("/login")
 async def do_login(request: Request, username: str = Form(...), password: str = Form(...)):
-    # چک کردن یوزر و پسورد با فایل settings
     if username == settings.WEB_USERNAME and password == settings.WEB_PASSWORD:
         response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-        # تنظیم کوکی برای ورود موفق (برای 24 ساعت)
         response.set_cookie(key="auth_session", value="authenticated", max_age=86400)
         return response
-    
-    # اگر اشتباه بود، دوباره صفحه لاگین را با ارور نشان بده
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "نام کاربری یا رمز عبور اشتباه است."})
 
 @app.get("/logout")
@@ -39,7 +47,16 @@ async def logout():
 
 @app.get("/", response_class=HTMLResponse, dependencies=[Depends(verify_cookie)])
 async def dashboard(request: Request):
-    # در اینجا دیتای لایو ربات را پاس می‌دهیم
-    bot_status = "Online"
-    active_pairs = settings.WATCHLIST
-    return templates.TemplateResponse(request=request, name="dashboard.html", context={"bot_status": bot_status, "pairs": active_pairs})
+    # دیتا را از حافظه مشترک می‌خوانیم و به HTML پاس می‌دهیم
+    return templates.TemplateResponse(
+        request=request, 
+        name="dashboard.html", 
+        context={
+            "bot_status": bot_state["status"],
+            "pairs": bot_state["active_pairs"],
+            "signals_today": bot_state["signals_today"],
+            "open_positions": bot_state["open_positions"],
+            "total_pnl": bot_state["total_pnl"],
+            "last_update": bot_state["last_update"]
+        }
+    )
