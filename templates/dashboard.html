@@ -10,6 +10,8 @@
         body { background: #020617; color: #cbd5e1; }
         .glass-panel { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(12px); }
         .sidebar { background: rgba(15, 23, 42, 0.8); border-left: 1px solid rgba(255,255,255,0.05); }
+        /* افکت کلیک روی کارت‌ها */
+        .ob-card:hover { transform: scale(1.02); transition: all 0.2s ease; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.2); }
     </style>
 </head>
 <body class="h-screen overflow-hidden flex font-sans">
@@ -48,7 +50,7 @@
             </div>
         </aside>
 
-        <main class="flex-1 h-full overflow-y-auto p-8 scrollbar-thin">
+        <main class="flex-1 h-full overflow-y-auto p-8 scrollbar-thin relative">
             
             <div x-show="currentTab === 'live'" x-transition class="space-y-6">
                 <div class="flex justify-between items-center mb-6">
@@ -70,9 +72,12 @@
                                 <div class="text-xl font-mono text-white/90 font-bold bg-black/40 px-3 py-1 rounded-lg" x-text="'$' + data.price"></div>
                             </div>
                             <div class="mb-4 p-3 rounded-xl bg-black/30 border border-black/50 text-sm font-medium"><span :class="data.color" x-text="data.msg"></span></div>
+                            
                             <div class="space-y-2 mt-2 max-h-48 overflow-y-auto pr-2">
                                 <template x-for="(ob, index) in data.obs" :key="index">
-                                    <div x-show="obFilter === 'all' || (obFilter === 'unmitigated' && !ob.is_mitigated)" class="p-3 rounded-xl border border-white/5 bg-white/5 flex justify-between items-center text-xs">
+                                    <div x-show="obFilter === 'all' || (obFilter === 'unmitigated' && !ob.is_mitigated)" 
+                                         @click="openModal(ob, symbol)" 
+                                         class="ob-card p-3 rounded-xl border border-white/5 bg-white/5 flex justify-between items-center text-xs">
                                         <div class="flex flex-col">
                                             <span class="font-bold" :class="ob.type === 'Bullish' ? 'text-emerald-400' : 'text-rose-400'" x-text="ob.type + ' OB'"></span>
                                             <span class="text-white/50" x-text="'فاصله: $' + ob.distance"></span>
@@ -94,7 +99,7 @@
                 <div class="glass-panel p-8 rounded-3xl">
                     <div class="flex gap-4 items-end">
                         <div class="flex-1">
-                            <label class="block text-sm font-bold text-white/70 mb-2">نماد معاملاتی (مثلاً BTC/USDT)</label>
+                            <label class="block text-sm font-bold text-white/70 mb-2">نماد معاملاتی</label>
                             <input x-model="btSymbol" type="text" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" placeholder="BTC/USDT">
                         </div>
                         <div class="w-32">
@@ -148,7 +153,47 @@
                 </div>
             </div>
 
-        </main>
+            <div x-show="showModal" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" x-transition.opacity>
+                <div @click.away="closeModal()" class="glass-panel p-8 rounded-3xl max-w-md w-full relative shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-white/20 transform transition-all" x-show="showModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 scale-90" x-transition:enter-end="opacity-100 scale-100">
+                    
+                    <button @click="closeModal()" class="absolute top-5 left-5 text-white/50 hover:text-rose-400 transition-colors">
+                        <i class="fa-solid fa-xmark text-2xl"></i>
+                    </button>
+
+                    <h3 class="text-2xl font-bold text-white mb-6 flex items-center gap-3" x-show="selectedOB">
+                        <i class="fa-solid fa-crosshairs" :class="selectedOB?.type === 'Bullish' ? 'text-emerald-400' : 'text-rose-400'"></i>
+                        جزئیات ناحیه <span x-text="selectedOBSymbol" class="text-white/70 text-lg ml-1"></span>
+                    </h3>
+
+                    <div class="space-y-4" x-show="selectedOB">
+                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
+                            <span class="text-white/50"><i class="fa-solid fa-chart-pie mr-2"></i>نوع ساختار:</span>
+                            <span class="font-bold text-lg" :class="selectedOB?.type === 'Bullish' ? 'text-emerald-400' : 'text-rose-400'" x-text="selectedOB?.type + ' OB'"></span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
+                            <span class="text-white/50"><i class="fa-solid fa-shield-halved mr-2"></i>وضعیت:</span>
+                            <span class="font-bold px-3 py-1 rounded-lg text-xs" :class="selectedOB?.is_mitigated ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'" x-text="selectedOB?.is_mitigated ? 'مصرف شده (Mitigated)' : 'بکر (Unmitigated)'"></span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
+                            <span class="text-white/50"><i class="fa-solid fa-arrow-up text-emerald-500 mr-2"></i>سقف بلوک (Top):</span>
+                            <span class="font-mono text-white text-lg" x-text="'$' + selectedOB?.top"></span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
+                            <span class="text-white/50"><i class="fa-solid fa-arrow-down text-rose-500 mr-2"></i>کف بلوک (Bottom):</span>
+                            <span class="font-mono text-white text-lg" x-text="'$' + selectedOB?.bottom"></span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
+                            <span class="text-white/50"><i class="fa-regular fa-calendar-days mr-2"></i>تاریخ تشکیل:</span>
+                            <span class="font-mono text-blue-300 text-sm bg-blue-900/30 px-2 py-1 rounded" x-text="selectedOB?.timestamp"></span>
+                        </div>
+                        <div class="flex justify-between items-center pt-1">
+                            <span class="text-white/50"><i class="fa-solid fa-pen-clip mr-2"></i>یادداشت فنی:</span>
+                            <span class="text-white/90 text-sm font-bold bg-white/10 px-3 py-1 rounded-lg" x-text="selectedOB?.note"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </main>
     </div>
 
     <script>
@@ -157,21 +202,36 @@
                 currentTab: 'live',
                 obFilter: 'unmitigated',
                 
+                // وضعیت پاپ‌آپ جزئیات
+                showModal: false,
+                selectedOB: null,
+                selectedOBSymbol: '',
+                
                 // بک تست
                 btSymbol: 'BTC/USDT',
-                btLimit: 500,
+                btLimit: 1000,
                 isBacktesting: false,
                 btResult: null,
                 
                 // واچ لیست
                 newSymbol: '',
                 activeWatchlist: [],
-                
                 bot_state: { status: "اتصال به هسته...", market_data: {} },
                 
                 initApp() {
                     this.connectWebSocket();
                     this.fetchWatchlist();
+                },
+
+                // باز و بسته کردن پاپ‌آپ
+                openModal(ob, symbol) {
+                    this.selectedOB = ob;
+                    this.selectedOBSymbol = symbol;
+                    this.showModal = true;
+                },
+                closeModal() {
+                    this.showModal = false;
+                    setTimeout(() => { this.selectedOB = null; }, 300); // تاخیر برای انیمیشن
                 },
 
                 // --- مدیریت وب‌سوکت ---
@@ -198,20 +258,12 @@
                 },
                 async addWatchlist() {
                     if(!this.newSymbol) return;
-                    await fetch('/api/watchlist/add', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({symbol: this.newSymbol.toUpperCase()})
-                    });
+                    await fetch('/api/watchlist/add', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({symbol: this.newSymbol.toUpperCase()}) });
                     this.newSymbol = '';
                     this.fetchWatchlist();
                 },
                 async removeWatchlist(symbol) {
-                    await fetch('/api/watchlist/remove', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({symbol: symbol})
-                    });
+                    await fetch('/api/watchlist/remove', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({symbol: symbol}) });
                     this.fetchWatchlist();
                 },
                 async runBacktest() {
@@ -219,17 +271,11 @@
                     this.isBacktesting = true;
                     this.btResult = null;
                     try {
-                        let res = await fetch('/api/backtest', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({symbol: this.btSymbol.toUpperCase(), limit: parseInt(this.btLimit)})
-                        });
+                        let res = await fetch('/api/backtest', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({symbol: this.btSymbol.toUpperCase(), limit: parseInt(this.btLimit)}) });
                         let data = await res.json();
                         if(data.status === 'success') this.btResult = data.data;
                         else alert("خطا: " + data.message);
-                    } catch(e) {
-                        alert("خطا در ارتباط با سرور");
-                    }
+                    } catch(e) { alert("خطا در ارتباط با سرور"); }
                     this.isBacktesting = false;
                 }
             }
