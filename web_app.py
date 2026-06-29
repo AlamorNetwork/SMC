@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,10 +78,14 @@ async def run_backtest(req: BacktestRequest):
         return {"status": "error", "message": str(e)}
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket):
+async def websocket_endpoint(websocket: WebSocket): # 👈 کلمه : WebSocket اضافه شد
     try:
         await manager.connect(websocket)
         while True:
+            # این خط اتصال را زنده نگه می‌دارد
             await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
     except Exception as e:
+        print(f"❌ اتصال کلاینت قطع شد: {e}")
         manager.disconnect(websocket)
