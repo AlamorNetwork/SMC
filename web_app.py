@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from settings import settings
 
 app = FastAPI(title="SMC Bot Panel")
@@ -17,11 +16,12 @@ def verify_cookie(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    # فرمت جدید و استاندارد FastAPI برای رندر قالب‌ها
+    return templates.TemplateResponse(request=request, name="login.html", context={"error": None})
 
 @app.post("/login")
 async def do_login(request: Request, username: str = Form(...), password: str = Form(...)):
-    # چک کردن یوزر و پسورد با فایل .env
+    # چک کردن یوزر و پسورد با فایل settings
     if username == settings.WEB_USERNAME and password == settings.WEB_PASSWORD:
         response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
         # تنظیم کوکی برای ورود موفق (برای 24 ساعت)
@@ -29,7 +29,7 @@ async def do_login(request: Request, username: str = Form(...), password: str = 
         return response
     
     # اگر اشتباه بود، دوباره صفحه لاگین را با ارور نشان بده
-    return templates.TemplateResponse("login.html", {"request": request, "error": "نام کاربری یا رمز عبور اشتباه است."})
+    return templates.TemplateResponse(request=request, name="login.html", context={"error": "نام کاربری یا رمز عبور اشتباه است."})
 
 @app.get("/logout")
 async def logout():
@@ -39,7 +39,7 @@ async def logout():
 
 @app.get("/", response_class=HTMLResponse, dependencies=[Depends(verify_cookie)])
 async def dashboard(request: Request):
-    # در اینجا بعداً دیتای لایو ربات را پاس می‌دهیم
+    # در اینجا دیتای لایو ربات را پاس می‌دهیم
     bot_status = "Online"
     active_pairs = settings.WATCHLIST
-    return templates.TemplateResponse("dashboard.html", {"request": request, "bot_status": bot_status, "pairs": active_pairs})
+    return templates.TemplateResponse(request=request, name="dashboard.html", context={"bot_status": bot_status, "pairs": active_pairs})
