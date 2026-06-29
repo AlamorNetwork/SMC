@@ -23,14 +23,16 @@ class ZoneDetector:
                 bullish_obs.append({
                     'top': df['high'].iloc[i], 
                     'bottom': df['low'].iloc[i], 
-                    'type': 'Bullish'
+                    'type': 'Bullish',
+                    'timestamp': df.index[i]  # <-- این خط اضافه شد
                 })
             # پیدا کردن Bearish OB
             elif df['close'].iloc[i] > df['open'].iloc[i] and df['close'].iloc[i+1] < df['open'].iloc[i+1] and is_volume_spike:
                 bearish_obs.append({
                     'top': df['high'].iloc[i], 
                     'bottom': df['low'].iloc[i], 
-                    'type': 'Bearish'
+                    'type': 'Bearish',
+                    'timestamp': df.index[i]  # <-- این خط اضافه شد
                 })
         return bullish_obs, bearish_obs
 
@@ -40,7 +42,7 @@ class ZoneDetector:
         """
         fvgs = []
         for i in range(2, len(df_h4)):
-            # Bullish FVG (عدم تعادل صعودی)
+            # Bullish FVG
             if df_h4['high'].iloc[i-2] < df_h4['low'].iloc[i]:
                 fvgs.append({
                     'type': 'Bullish',
@@ -48,7 +50,7 @@ class ZoneDetector:
                     'bottom': df_h4['high'].iloc[i-2],
                     'timestamp': df_h4.index[i-1]
                 })
-            # Bearish FVG (عدم تعادل نزولی)
+            # Bearish FVG
             elif df_h4['low'].iloc[i-2] > df_h4['high'].iloc[i]:
                 fvgs.append({
                     'type': 'Bearish',
@@ -60,7 +62,7 @@ class ZoneDetector:
 
     def calculate_ote_levels(self, main_leg):
         """
-        محاسبه محدوده طلایی ورود OTE (اصلاح ۶۷٪ تا ۷۱٪ فیبوناچی)
+        محاسبه محدوده طلایی ورود OTE (اصلاح ۷۱٪ تا ۷۹٪ فیبوناچی)
         """
         if main_leg["start"] is None or main_leg["end"] is None:
             return None, None
