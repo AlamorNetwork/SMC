@@ -10,7 +10,7 @@ class Settings:
     
     # واچ‌لیست ارزها برای رصد همزمان
     WATCHLIST = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT" , "APE/USDT", "BNB/USDT", "ADA/USDT", "DOGE/USDT", "DOT/USDT", "LTC/USDT",
-                 "MATIC/USDT", "AVAX/USDT", "SHIB/USDT", "TRX/USDT", "UNI/USDT", "LINK/USDT", "ATOM/USDT", "ALGO/USDT", "VET/USDT", "FIL/USDT"]
+                  "AVAX/USDT", "SHIB/USDT", "TRX/USDT", "UNI/USDT", "LINK/USDT", "ATOM/USDT", "ALGO/USDT", "FIL/USDT"]
     
     # تایم‌فریم‌های استراتژی SMC
     TIMEFRAME_STRUCTURE = "4h"  # تایم‌فریم ساختار اصلی (H4)
