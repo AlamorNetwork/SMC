@@ -21,14 +21,23 @@ def execute_bot_loop():
         for symbol in settings.WATCHLIST:
             print(f"\n🔍 در حال پردازش {symbol}...")
             
+            # دریافت داده‌ها
             df_h4, df_m15 = fetcher.fetch_all_required_data(symbol)
-            if df_h4 is None or df_m15 is None: continue
+            if df_h4 is None or df_m15 is None: 
+                print(f"   ⚠️ خطا: داده‌های H4 یا M15 برای {symbol} دریافت نشد!")
+                continue
                 
+            # تحلیل ساختار
             trend, main_leg, break_type = analyzer.analyze_structure(df_h4)
-            if trend == "Neutral": continue
+            print(f"   📊 وضعیت ساختار بازار: {trend} | آخرین شکست: {break_type}")
+            
+            if trend == "Neutral": 
+                print("   ⚠️ روند خنثی است یا سقف/کف معتبر کافی یافت نشد. پرش به ارز بعدی...")
+                continue
                 
             ote_low, ote_high = detector.calculate_ote_levels(main_leg)
             current_price = df_m15['close'].iloc[-1]
+            print(f"   💵 قیمت فعلی M15: {current_price}")
             
             # بررسی پوزیشن خرید
             if trend == "Bullish" and ote_low is not None:
