@@ -13,7 +13,7 @@ class SMCBacktester:
         self.filter = LiquidityAndConfirmationFilter()
         
     def run_backtest(self, symbols, limit=500):
-        print(f"🛠 در حال شروع بک‌تست روی {len(symbols)} نماد با {limit} کندل...")
+        print(f"🛠 در حال شروع بک‌تست پیشرفته روی {len(symbols)} نماد با {limit} کندل...")
         
         results = []
         for symbol in symbols:
@@ -28,49 +28,91 @@ class SMCBacktester:
             wins = 0
             losses = 0
             
-            print(f"   🧱 {len(bullish_obs)} اوردربلاک صعودی و {len(bearish_obs)} نزولی در چارت پیدا شد.")
+            print(f"   🧱 {len(bullish_obs)} OB صعودی و {len(bearish_obs)} OB نزولی در گذشته یافت شد.")
             
-            # بررسی اوردربلاک‌های صعودی
+            # ================= بررسی اوردربلاک‌های صعودی =================
             for ob in bullish_obs:
-                if ob['is_mitigated']:
-                    print(f"      - [رد شد] اوردربلاک صعودی (زمان: {ob['timestamp']}) قبلاً مصرف (Mitigated) شده بود.")
-                    continue
-                if not self.analyzer.check_inducement(df_h4, ob['timestamp'], "Bullish"):
-                    print(f"      - [رد شد] اوردربلاک صعودی (زمان: {ob['timestamp']}) فاقد تله القا (Inducement) بود.")
-                    continue
-                    
-                print(f"      + [تایید ورود] یک اوردربلاک طلایی صعودی پیدا شد! در حال شبیه‌سازی آینده...")
+                # 🚀 نکته: ما شرط Mitigated بودن را حذف کردیم تا معاملات گذشته را ببینیم!
                 ob_index = df_h4.index.get_loc(ob['timestamp'])
                 df_future = df_h4.iloc[ob_index + 3:] 
                 
-                trade_active = False
+                # پیدا کردن اولین برخورد قیمت به اوردربلاک (نقطه ورود)
+                entry_candle_idx = None
                 for idx, candle in df_future.iterrows():
-                    if not trade_active and candle['low'] <= ob['top']:
-                        trade_active = True
-                        
-                    if trade_active:
-                        if candle['low'] < ob['bottom']:
-                            losses += 1
-                            print("         ❌ معامله با استاپ‌لاس بسته شد.")
-                            break
-                        risk = ob['top'] - ob['bottom']
-                        target = ob['top'] + (risk * 2)
-                        if candle['high'] >= target:
-                            wins += 1
-                            print("         ✅ معامله با سود (TP) بسته شد.")
-                            break
+                    if candle['low'] <= ob['top']:
+                        entry_candle_idx = idx
+                        break
+                
+                if entry_candle_idx is None:
+                    # قیمت هرگز در گذشته به این اوردربلاک برنگشته است
+                    continue
+                    
+                # بررسی القا (Inducement): آیا بین زمان تشکیل OB و زمان ورود، تله‌ای ساخته شد؟
+                df_before_entry = df_h4.loc[ob['timestamp']:entry_candle_idx]
+                if not self.analyzer.check_inducement(df_before_entry, ob['timestamp'], "Bullish"):
+                    continue
+                    
+                print(f"      🟢 [ورود خرید] برخورد به OB صعودی در زمان {entry_candle_idx}")
+                
+                # بررسی آینده بعد از ورود برای یافتن حد سود یا حد ضرر
+                df_after_entry = df_h4.loc[entry_candle_idx:]
+                risk = ob['top'] - ob['bottom']
+                target = ob['top'] + (risk * 2) # ریسک به ریوارد 1:2
+                
+                for idx, candle in df_after_entry.iterrows():
+                    if candle['low'] < ob['bottom']:
+                        losses += 1
+                        print("         ❌ استاپ‌لاس خورد.")
+                        break
+                    if candle['high'] >= target:
+                        wins += 1
+                        print("         ✅ تارگت (TP) تاچ شد.")
+                        break
 
+            # ================= بررسی اوردربلاک‌های نزولی =================
+            for ob in bearish_obs:
+                ob_index = df_h4.index.get_loc(ob['timestamp'])
+                df_future = df_h4.iloc[ob_index + 3:] 
+                
+                entry_candle_idx = None
+                for idx, candle in df_future.iterrows():
+                    if candle['high'] >= ob['bottom']:
+                        entry_candle_idx = idx
+                        break
+                
+                if entry_candle_idx is None:
+                    continue
+                    
+                df_before_entry = df_h4.loc[ob['timestamp']:entry_candle_idx]
+                if not self.analyzer.check_inducement(df_before_entry, ob['timestamp'], "Bearish"):
+                    continue
+                    
+                print(f"      🔴 [ورود فروش] برخورد به OB نزولی در زمان {entry_candle_idx}")
+                
+                df_after_entry = df_h4.loc[entry_candle_idx:]
+                risk = ob['top'] - ob['bottom']
+                target = ob['bottom'] - (risk * 2) # ریسک به ریوارد 1:2
+                
+                for idx, candle in df_after_entry.iterrows():
+                    if candle['high'] > ob['top']:
+                        losses += 1
+                        print("         ❌ استاپ‌لاس خورد.")
+                        break
+                    if candle['low'] <= target:
+                        wins += 1
+                        print("         ✅ تارگت (TP) تاچ شد.")
+                        break
+
+            # محاسبه نتیجه
             total_trades = wins + losses
             win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
-            print(f"   🏆 نتیجه نهایی {symbol} -> موفق: {wins} | زیان: {losses} | وین‌ریت: {win_rate:.2f}%")
+            print(f"   🏆 نتیجه {symbol} -> موفق: {wins} | زیان: {losses} | وین‌ریت: {win_rate:.2f}%")
             
-            results.append({"symbol": symbol, "wins": wins, "losses": losses, "win_rate": win_rate})
+            results.append({
+                "symbol": symbol,
+                "wins": wins,
+                "losses": losses,
+                "win_rate": win_rate
+            })
 
         return results
-
-# نحوه اجرای بک‌تست
-if __name__ == "__main__":
-    backtester = SMCBacktester()
-    # می‌توانی فقط نمادهایی که می‌خواهی را اینجا بدهی تا به سرور فشار نیاید
-    my_test_list = ["BTC/USDT", "ETH/USDT"] 
-    backtester.run_backtest(my_test_list, limit=1000)
