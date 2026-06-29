@@ -1,22 +1,23 @@
+# محتوای استاندارد ws_manager.py باید این‌گونه باشد:
 from fastapi import WebSocket
-from typing import List
 
 class ConnectionManager:
     def __init__(self):
-        # لیستی از تمام تب‌ها و مرورگرهای متصل به پنل
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
+        await websocket.accept() # 👈 این خط بسیار حیاتی است
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        # ارسال دیتای جدید به صورت JSON برای تمام کاربران متصل
         for connection in self.active_connections:
-            await connection.send_json(message)
+            try:
+                await connection.send_json(message)
+            except:
+                pass
 
-# ساخت یک نمونه از منیجر برای استفاده در کل پروژه
 manager = ConnectionManager()

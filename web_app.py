@@ -8,14 +8,23 @@ from ws_manager import manager
 from shared_state import bot_state
 from settings import settings
 from backtester import SMCBacktester # فراخوانی موتور بک‌تست
-
+from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="SMC Institutional Terminal")
+
+# 🚀 اضافه شدن تنظیمات CORS برای رفع خطای 403 وب‌سوکت
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # اجازه اتصال به همه IP ها و دامنه‌ها
+    allow_credentials=True,
+    allow_methods=["*"],  # اجازه همه متدها (GET, POST, WS و ...)
+    allow_headers=["*"],
+)
+
 templates = Jinja2Templates(directory="templates")
 
 # مقداردهی اولیه واچ‌لیست در مموری
 if not bot_state["active_pairs"]:
     bot_state["active_pairs"] = settings.WATCHLIST.copy()
-
 # ---- مدل‌های دیتا برای API ----
 class WatchlistRequest(BaseModel):
     symbol: str
