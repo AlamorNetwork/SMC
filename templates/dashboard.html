@@ -114,16 +114,18 @@
                 </div>
 
                 <div x-show="btResult" x-transition class="glass-panel p-8 rounded-3xl mt-6 border-t border-purple-500/50">
-                    <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                        <i class="fa-solid fa-square-poll-vertical text-purple-400"></i> نتایج تست <span x-text="btResult?.symbol" class="text-purple-300 ml-2"></span>
+                    <h3 class="text-xl font-bold text-white mb-6 flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-square-poll-vertical text-purple-400"></i> نتایج تست <span x-text="btResult?.symbol" class="text-purple-300 ml-2"></span></span>
+                        <span class="text-sm bg-white/10 px-4 py-1 rounded-full border border-white/20">کل OBهای یافت شده: <span x-text="btResult?.total_found" class="font-bold text-emerald-400"></span></span>
                     </h3>
-                    <div class="grid grid-cols-3 gap-6 text-center">
+                    
+                    <div class="grid grid-cols-3 gap-6 text-center mb-8">
                         <div class="bg-black/30 p-4 rounded-2xl border border-emerald-500/20">
-                            <div class="text-sm text-white/50 mb-1">معاملات موفق</div>
+                            <div class="text-sm text-white/50 mb-1">معاملات موفق (TP)</div>
                             <div class="text-3xl font-bold text-emerald-400" x-text="btResult?.wins"></div>
                         </div>
                         <div class="bg-black/30 p-4 rounded-2xl border border-rose-500/20">
-                            <div class="text-sm text-white/50 mb-1">استاپ لاس‌ها</div>
+                            <div class="text-sm text-white/50 mb-1">استاپ لاس‌ها (SL)</div>
                             <div class="text-3xl font-bold text-rose-400" x-text="btResult?.losses"></div>
                         </div>
                         <div class="bg-black/30 p-4 rounded-2xl border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
@@ -131,8 +133,36 @@
                             <div class="text-3xl font-bold text-blue-400" x-text="btResult?.win_rate?.toFixed(2) + '%'"></div>
                         </div>
                     </div>
+
+                    <div class="border-t border-white/10 pt-6">
+                        <h4 class="text-lg font-bold text-white mb-4"><i class="fa-solid fa-list-check text-blue-400 mr-2"></i> گزارش تفصیلی دیباگر (Debugger Logs)</h4>
+                        
+                        <div class="space-y-3 max-h-96 overflow-y-auto pr-2 scrollbar-thin">
+                            <template x-for="(log, index) in btResult?.trade_logs" :key="index">
+                                <div class="p-4 rounded-xl border flex flex-col gap-2 transition-all hover:bg-white/5"
+                                     :class="log.status === 'Win' ? 'bg-emerald-900/20 border-emerald-500/30' : (log.status === 'Loss' ? 'bg-rose-900/20 border-rose-500/30' : 'bg-black/40 border-white/10')">
+                                    
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex items-center gap-3">
+                                            <span class="font-bold text-sm" :class="log.type === 'Bullish' ? 'text-emerald-400' : 'text-rose-400'" x-text="log.type + ' OB'"></span>
+                                            <span class="text-xs font-mono text-white/50 bg-black/50 px-2 py-1 rounded" x-text="log.time"></span>
+                                        </div>
+                                        <span class="font-mono text-white/80 text-sm" x-text="log.zone"></span>
+                                    </div>
+                                    
+                                    <div class="text-sm mt-1 flex items-start gap-2">
+                                        <i class="fa-solid mt-1" :class="log.status === 'Win' ? 'fa-check text-emerald-400' : (log.status === 'Loss' ? 'fa-xmark text-rose-400' : 'fa-circle-info text-blue-400')"></i>
+                                        <span class="text-white/80" x-text="log.reason"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <div x-show="btResult?.trade_logs?.length === 0" class="text-center py-6 text-white/50">
+                                هیچ اوردربلاکی با این تنظیمات سخت‌گیرانه یافت نشد. می‌توانید از بخش تنظیمات شروط را ملایم‌تر کنید.
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
             <div x-show="currentTab === 'watchlist'" x-transition style="display: none;" class="max-w-2xl mx-auto space-y-6">
                 <h2 class="text-2xl font-bold text-white mb-6">واچ‌لیست زنده ربات</h2>
