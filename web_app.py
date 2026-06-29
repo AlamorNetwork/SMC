@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request
+# خط ایمپورت‌های بالا را به این شکل کامل کن:
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -78,12 +79,16 @@ async def run_backtest(req: BacktestRequest):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# وب‌سوکت برای دیتای لایو (کدهای قبلی سرجایش است)
+# ---- وب‌سوکت برای دیتای لایو ----
 @app.websocket("/ws")
-async def websocket_endpoint(websocket):
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket):
     try:
+        await manager.connect(websocket)
         while True:
-            await websocket.receive_text()
-    except:
+            # منتظر ماندن برای دریافت پیام از کلاینت (برای باز نگه داشتن اتصال)
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"❌ خطای پیش‌بینی نشده در وب‌سوکت: {e}")
         manager.disconnect(websocket)

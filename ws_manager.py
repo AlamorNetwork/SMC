@@ -1,4 +1,3 @@
-# محتوای استاندارد ws_manager.py باید این‌گونه باشد:
 from fastapi import WebSocket
 
 class ConnectionManager:
@@ -6,18 +5,23 @@ class ConnectionManager:
         self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept() # 👈 این خط بسیار حیاتی است
+        # این خط بسیار حیاتی است. اگر نباشد، خطای 403 دریافت می‌کنیم
+        await websocket.accept()
         self.active_connections.append(websocket)
+        print(f"🟢 یک کلاینت متصل شد. تعداد اتصالات زنده: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+            print(f"🔴 کلاینت قطع شد. تعداد اتصالات زنده: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        # ارسال پیام به تمام کاربران متصل به داشبورد
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(message)
-            except:
-                pass
+            except Exception as e:
+                print(f"⚠️ خطا در ارسال پیام به کلاینت: {e}")
+                self.disconnect(connection)
 
 manager = ConnectionManager()
