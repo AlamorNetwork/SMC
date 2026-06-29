@@ -204,21 +204,29 @@
                             <span class="text-white/50"><i class="fa-solid fa-shield-halved mr-2"></i>وضعیت:</span>
                             <span class="font-bold px-3 py-1 rounded-lg text-xs" :class="selectedOB?.is_mitigated ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'" x-text="selectedOB?.is_mitigated ? 'مصرف شده (Mitigated)' : 'بکر (Unmitigated)'"></span>
                         </div>
-                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
-                            <span class="text-white/50"><i class="fa-solid fa-arrow-up text-emerald-500 mr-2"></i>سقف بلوک (Top):</span>
-                            <span class="font-mono text-white text-lg" x-text="'$' + selectedOB?.top"></span>
+                        
+                        <div class="bg-black/40 p-3 rounded-xl border border-white/10 space-y-2 my-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-white/50 text-sm">🎯 نقطه ورود:</span>
+                                <span class="font-mono text-white" x-text="'$' + (selectedOB?.type === 'Bullish' ? selectedOB?.top : selectedOB?.bottom)"></span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-white/50 text-sm">❌ حد ضرر (SL):</span>
+                                <span class="font-mono text-rose-400" x-text="'$' + selectedOB?.sl"></span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-white/50 text-sm">✅ حد سود (TP):</span>
+                                <span class="font-mono text-emerald-400" x-text="'$' + selectedOB?.tp"></span>
+                            </div>
+                            <div class="flex justify-between items-center pt-2 border-t border-white/5 mt-2">
+                                <span class="text-white/50 text-sm">⚡ لوریج پیشنهادی ایمن:</span>
+                                <span class="font-bold text-blue-400 bg-blue-500/20 px-2 py-1 rounded" x-text="selectedOB?.leverage + 'x'"></span>
+                            </div>
                         </div>
-                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
-                            <span class="text-white/50"><i class="fa-solid fa-arrow-down text-rose-500 mr-2"></i>کف بلوک (Bottom):</span>
-                            <span class="font-mono text-white text-lg" x-text="'$' + selectedOB?.bottom"></span>
-                        </div>
-                        <div class="flex justify-between items-center border-b border-white/5 pb-3">
+                        
+                        <div class="flex justify-between items-center pt-1">
                             <span class="text-white/50"><i class="fa-regular fa-calendar-days mr-2"></i>تاریخ تشکیل:</span>
                             <span class="font-mono text-blue-300 text-sm bg-blue-900/30 px-2 py-1 rounded" x-text="selectedOB?.timestamp"></span>
-                        </div>
-                        <div class="flex justify-between items-center pt-1">
-                            <span class="text-white/50"><i class="fa-solid fa-pen-clip mr-2"></i>یادداشت فنی:</span>
-                            <span class="text-white/90 text-sm font-bold bg-white/10 px-3 py-1 rounded-lg" x-text="selectedOB?.note"></span>
                         </div>
                     </div>
                 </div>

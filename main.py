@@ -44,25 +44,41 @@ async def execute_bot_loop():
                 bullish_obs, bearish_obs = detector.find_order_blocks(df_h4)
                 
                 # ترکیب و مرتب‌سازی اوردربلاک‌ها برای ارسال به فرانت‌اند
+                # ترکیب و مرتب‌سازی اوردربلاک‌ها برای ارسال به فرانت‌اند
                 all_obs = bullish_obs + bearish_obs
                 processed_obs = []
                 
                 for ob in all_obs:
-                    # محاسبه فاصله تا قیمت فعلی
                     dist = current_price - ob['top'] if ob['type'] == 'Bullish' else ob['bottom'] - current_price
                     dist = abs(dist)
+                    
+                    # محاسبه TP، SL و لوریج پیشنهادی
+                    if ob['type'] == 'Bullish':
+                        entry = ob['top']
+                        sl = ob['bottom']
+                        tp = entry + ((entry - sl) * 2) # ریوارد 2
+                    else:
+                        entry = ob['bottom']
+                        sl = ob['top']
+                        tp = entry - ((sl - entry) * 2) # ریوارد 2
+                        
+                    # محاسبه لوریج ایمن (فاصله استاپ تا نقطه ورود)
+                    sl_dist_pct = abs(entry - sl) / entry * 100
+                    safe_leverage = max(1, min(50, int(15 / sl_dist_pct))) if sl_dist_pct > 0 else 1
                     
                     processed_obs.append({
                         "type": ob['type'],
                         "top": round(ob['top'], 4),
                         "bottom": round(ob['bottom'], 4),
+                        "tp": round(tp, 4),
+                        "sl": round(sl, 4),
+                        "leverage": safe_leverage,
                         "is_mitigated": ob['is_mitigated'],
                         "distance": round(dist, 4),
                         "timestamp": str(ob['timestamp']),
                         "note": ob['note']
                     })
                 
-                # مرتب‌سازی بر اساس نزدیک‌ترین فاصله به قیمت فعلی
                 processed_obs = sorted(processed_obs, key=lambda x: x['distance'])
                 
                 status_msg = "در حال رصد بازار..."
