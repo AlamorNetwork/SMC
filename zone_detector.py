@@ -20,19 +20,26 @@ class ZoneDetector:
 
     def is_mitigated(self, df, start_idx, ob_top, ob_bottom, direction):
         """
-        آموزش کد: این متد بررسی می‌کند آیا بعد از تشکیل اوردربلاک، قیمت به داخل آن برگشته است یا خیر.
-        با استفاده از یک حلقه ساده، کندل‌های بعد از OB را چک می‌کنیم.
+        آموزش کد: بررسی بکر بودن ناحیه.
+        ما بررسی را از 3 کندل بعد (start_idx + 3) آغاز می‌کنیم. 
+        چرا؟ چون کندل 1 خود OB است، کندل 2 کندل حرکت اصلی است (که معمولاً به OB چسبیده) 
+        و کندل 3 تاییدکننده FVG است. بازگشت به ناحیه (Mitigation) فقط بعد از این فاز معنا دارد.
         """
-        for i in range(start_idx + 1, len(df)):
+        # اگر تعداد کندل‌های بعد از OB کمتر از 3 تا باشد، یعنی هنوز بکر است
+        if start_idx + 3 >= len(df):
+            return False
+            
+        for i in range(start_idx + 3, len(df)):
             if direction == "Bullish":
-                # اگر در لگ صعودی، کف کندل‌های بعدی به سقف اوردربلاک برخورد کرده باشد
+                # در لگ صعودی: آیا کف کندل‌های آینده به سقف اوردربلاک ما برخورد کرده است؟
                 if df['low'].iloc[i] <= ob_top:
                     return True
             else:
-                # اگر در لگ نزولی، سقف کندل‌های بعدی به کف اوردربلاک برخورد کرده باشد
+                # در لگ نزولی: آیا سقف کندل‌های آینده به کف اوردربلاک ما برخورد کرده است؟
                 if df['high'].iloc[i] >= ob_bottom:
                     return True
-        return False # یعنی بکر و Unmitigated است
+                    
+        return False
 
     def find_order_blocks(self, df_h4):
         """
