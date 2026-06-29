@@ -26,97 +26,92 @@ async def execute_bot_loop():
     while True:
         try:
             bot_state["status"] = "در حال پردازش بازار ⏳"
+            bot_state["alarm_trigger"] = False # ریست کردن آلارم در هر چرخه
             await manager.broadcast(bot_state)
             
             for symbol in settings.WATCHLIST:
-                print(f"\n🔍 در حال پردازش {symbol}...")
-                
                 # دریافت داده‌ها
                 df_h4, df_m15 = fetcher.fetch_all_required_data(symbol)
                 if df_h4 is None or df_m15 is None:
-                    bot_state["market_data"][symbol] = {"trend": "Error", "price": "-", "msg": "خطا در دریافت دیتا", "color": "text-red-500"}
                     continue
                     
                 trend, main_leg, break_type = analyzer.analyze_structure(df_h4)
                 if trend == "Neutral" or not main_leg["is_valid"]: 
-                    msg = "روند خنثی یا لگ نامعتبر"
-                    print(f"   ⚠️ {msg}")
-                    bot_state["market_data"][symbol] = {"trend": "Neutral", "price": "-", "msg": msg, "color": "text-gray-400"}
+                    bot_state["market_data"][symbol] = {"trend": "Neutral", "price": "-", "msg": "روند خنثی", "obs": []}
                     continue
                     
                 current_price = df_m15['close'].iloc[-1]
                 bullish_obs, bearish_obs = detector.find_order_blocks(df_h4)
                 
-                status_msg = "در حال جستجوی اوردربلاک..."
+                # ترکیب و مرتب‌سازی اوردربلاک‌ها برای ارسال به فرانت‌اند
+                all_obs = bullish_obs + bearish_obs
+                processed_obs = []
+                
+                for ob in all_obs:
+                    # محاسبه فاصله تا قیمت فعلی
+                    dist = current_price - ob['top'] if ob['type'] == 'Bullish' else ob['bottom'] - current_price
+                    dist = abs(dist)
+                    
+                    processed_obs.append({
+                        "type": ob['type'],
+                        "top": round(ob['top'], 4),
+                        "bottom": round(ob['bottom'], 4),
+                        "is_mitigated": ob['is_mitigated'],
+                        "distance": round(dist, 4),
+                        "timestamp": str(ob['timestamp']),
+                        "note": ob['note']
+                    })
+                
+                # مرتب‌سازی بر اساس نزدیک‌ترین فاصله به قیمت فعلی
+                processed_obs = sorted(processed_obs, key=lambda x: x['distance'])
+                
+                status_msg = "در حال رصد بازار..."
                 color_class = "text-blue-400"
 
-                # ================= بررسی سیگنال خرید =================
+                # بررسی سیگنال روی نزدیک‌ترین اوردربلاک معتبر
                 if trend == "Bullish" and bullish_obs:
                     last_ob = bullish_obs[-1]
-                    if last_ob['is_mitigated']:
-                        status_msg = "اوردربلاک صعودی مصرف شده (Mitigated) ❌"
-                        color_class = "text-red-400"
-                    elif not detector.check_premium_discount(last_ob['top'], main_leg, "Bullish"):
-                        status_msg = "قیمت در ناحیه گران (Premium) است ❌"
-                        color_class = "text-orange-400"
-                    elif not analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bullish"):
-                        status_msg = "فاقد تله القا (Inducement) ❌"
-                        color_class = "text-orange-400"
-                    elif last_ob['bottom'] <= current_price <= last_ob['top'] * 1.01:
-                        if filter_engine.check_cbs_entry(df_h4, "Bullish") or filter_engine.check_choch_entry(df_m15, "Bullish"):
-                            status_msg = "✅ سیگنال خرید صادر شد!"
-                            color_class = "text-emerald-400"
-                            bot_state["signals_today"] += 1
-                        else:
-                            status_msg = "⏳ منتظر تاییدیه M15 (پوشا+حجم)"
-                            color_class = "text-yellow-400"
-                    else:
-                        dist = abs(current_price - last_ob['top'])
-                        status_msg = f"🎯 اوردربلاک طلایی معتبر! فاصله: {dist:.4f}"
-                        color_class = "text-emerald-400"
-
-                # ================= بررسی سیگنال فروش =================
+                    if not last_ob['is_mitigated'] and detector.check_premium_discount(last_ob['top'], main_leg, "Bullish") and analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bullish"):
+                        if last_ob['bottom'] <= current_price <= last_ob['top'] * 1.01:
+                            if filter_engine.check_cbs_entry(df_h4, "Bullish") or filter_engine.check_choch_entry(df_m15, "Bullish"):
+                                status_msg = "✅ سیگنال خرید صادر شد!"
+                                color_class = "text-emerald-400"
+                                bot_state["alarm_trigger"] = True
+                                bot_state["alarm_symbol"] = symbol
+                            else:
+                                status_msg = "⏳ قیمت رسید! منتظر تاییدیه M15"
+                                color_class = "text-yellow-400"
+                                bot_state["alarm_trigger"] = True # آلارم برخورد به ناحیه
+                                bot_state["alarm_symbol"] = symbol
+                                
                 elif trend == "Bearish" and bearish_obs:
                     last_ob = bearish_obs[-1]
-                    if last_ob['is_mitigated']:
-                        status_msg = "اوردربلاک نزولی مصرف شده (Mitigated) ❌"
-                        color_class = "text-red-400"
-                    elif not detector.check_premium_discount(last_ob['bottom'], main_leg, "Bearish"):
-                        status_msg = "قیمت در ناحیه ارزان (Discount) است ❌"
-                        color_class = "text-orange-400"
-                    elif not analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bearish"):
-                        status_msg = "فاقد تله القا (Inducement) ❌"
-                        color_class = "text-orange-400"
-                    elif last_ob['bottom'] * 0.99 <= current_price <= last_ob['top']:
-                        if filter_engine.check_cbs_entry(df_h4, "Bearish") or filter_engine.check_choch_entry(df_m15, "Bearish"):
-                            status_msg = "🔻 سیگنال فروش صادر شد!"
-                            color_class = "text-rose-400"
-                            bot_state["signals_today"] += 1
-                        else:
-                            status_msg = "⏳ منتظر تاییدیه M15 (پوشا+حجم)"
-                            color_class = "text-yellow-400"
-                    else:
-                        dist = abs(current_price - last_ob['bottom'])
-                        status_msg = f"🎯 اوردربلاک طلایی معتبر! فاصله: {dist:.4f}"
-                        color_class = "text-rose-400"
+                    if not last_ob['is_mitigated'] and detector.check_premium_discount(last_ob['bottom'], main_leg, "Bearish") and analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bearish"):
+                        if last_ob['bottom'] * 0.99 <= current_price <= last_ob['top']:
+                            if filter_engine.check_cbs_entry(df_h4, "Bearish") or filter_engine.check_choch_entry(df_m15, "Bearish"):
+                                status_msg = "🔻 سیگنال فروش صادر شد!"
+                                color_class = "text-rose-400"
+                                bot_state["alarm_trigger"] = True
+                                bot_state["alarm_symbol"] = symbol
+                            else:
+                                status_msg = "⏳ قیمت رسید! منتظر تاییدیه M15"
+                                color_class = "text-yellow-400"
+                                bot_state["alarm_trigger"] = True
+                                bot_state["alarm_symbol"] = symbol
 
-                # ذخیره اطلاعات برای ارسال به وب‌سایت
                 bot_state["market_data"][symbol] = {
                     "trend": trend,
                     "price": f"{current_price:.4f}",
                     "msg": status_msg,
-                    "color": color_class
+                    "color": color_class,
+                    "obs": processed_obs  # ارسال لیست کامل به فرانت‌اند
                 }
-                print(f"   {status_msg}")
                             
             now = datetime.now().strftime("%H:%M:%S")
             bot_state["last_update"] = f"آخرین بروزرسانی: {now}"
             bot_state["status"] = "آماده شکار ✅"
             
-            # ارسال تمام دیتاها (از جمله مارکت دیتا) به فرانت‌اند
             await manager.broadcast(bot_state)
-            
-            print(f"\n⏳ استراحت کوتاه ربات... ({now})")
             await asyncio.sleep(10) 
             
         except Exception as e:
