@@ -9,7 +9,6 @@ class MarketStructureAnalyzer:
         df['swing_low'] = np.nan
         
         for i in range(n, len(df) - n):
-            # بررسی سقف (Swing High)
             is_high = True
             for j in range(1, n + 1):
                 if df['high'].iloc[i] <= df['high'].iloc[i-j] or df['high'].iloc[i] <= df['high'].iloc[i+j]:
@@ -18,7 +17,6 @@ class MarketStructureAnalyzer:
             if is_high:
                 df.iloc[i, df.columns.get_loc('swing_high')] = df['high'].iloc[i]
                 
-            # بررسی کف (Swing Low)
             is_low = True
             for j in range(1, n + 1):
                 if df['low'].iloc[i] >= df['low'].iloc[i-j] or df['low'].iloc[i] >= df['low'].iloc[i+j]:
@@ -32,7 +30,7 @@ class MarketStructureAnalyzer:
         df = self.detect_swings(df_h4)
         trend = "Neutral"
         last_break_type = None 
-        main_leg = {"start": None, "end": None, "direction": None}
+        main_leg = {"start": None, "start_time": None, "end": None, "end_time": None, "direction": None}
         
         highs = df[df['swing_high'].notna()]
         lows = df[df['swing_low'].notna()]
@@ -42,25 +40,45 @@ class MarketStructureAnalyzer:
             
         current_close = df['close'].iloc[-1]
         
-        # تشخیص روند پایه
         if highs['high'].iloc[-1] > highs['high'].iloc[-2] and lows['low'].iloc[-1] > lows['low'].iloc[-2]:
             trend = "Bullish"
         elif highs['high'].iloc[-1] < highs['high'].iloc[-2] and lows['low'].iloc[-1] < lows['low'].iloc[-2]:
             trend = "Bearish"
             
-        # تشخیص قطعی BOS یا MSS با قیمت بسته شدن
+        # بازنویسی منطق الگوریتم طبق SMC: پیدا کردن بازوی حرکتی از آخرین نقطه سوئینگ معتبر
         if current_close > highs['high'].iloc[-2]:
             last_break_type = "BOS"
             trend = "Bullish"
-            main_leg = {"start": lows['low'].iloc[-1], "end": df['high'].max(), "direction": "Bullish"}
+            start_val = lows['low'].iloc[-1]
+            start_time = lows.index[-1]
+            df_after_start = df.loc[start_time:]
+            end_val = df_after_start['high'].max()
+            end_time = df_after_start['high'].idxmax()
+            main_leg = {"start": start_val, "start_time": start_time, "end": end_val, "end_time": end_time, "direction": "Bullish"}
+            
         elif current_close < lows['low'].iloc[-2]:
             last_break_type = "MSS"
             trend = "Bearish"
-            main_leg = {"start": highs['high'].iloc[-1], "end": df['low'].min(), "direction": "Bearish"}
+            start_val = highs['high'].iloc[-1]
+            start_time = highs.index[-1]
+            df_after_start = df.loc[start_time:]
+            end_val = df_after_start['low'].min()
+            end_time = df_after_start['low'].idxmin()
+            main_leg = {"start": start_val, "start_time": start_time, "end": end_val, "end_time": end_time, "direction": "Bearish"}
         else:
             if trend == "Bullish":
-                main_leg = {"start": lows['low'].iloc[-1], "end": df['high'].iloc[-1], "direction": "Bullish"}
+                start_val = lows['low'].iloc[-1]
+                start_time = lows.index[-1]
+                df_after_start = df.loc[start_time:]
+                end_val = df_after_start['high'].max()
+                end_time = df_after_start['high'].idxmax()
+                main_leg = {"start": start_val, "start_time": start_time, "end": end_val, "end_time": end_time, "direction": "Bullish"}
             else:
-                main_leg = {"start": highs['high'].iloc[-1], "end": df['low'].iloc[-1], "direction": "Bearish"}
+                start_val = highs['high'].iloc[-1]
+                start_time = highs.index[-1]
+                df_after_start = df.loc[start_time:]
+                end_val = df_after_start['low'].min()
+                end_time = df_after_start['low'].idxmin()
+                main_leg = {"start": start_val, "start_time": start_time, "end": end_val, "end_time": end_time, "direction": "Bearish"}
                 
         return trend, main_leg, last_break_type

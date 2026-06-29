@@ -24,7 +24,7 @@ class Settings:
     VOLUME_MULTIPLIER_ENTRY = 1.2    # ضریب حجم برای تاییدیه کندل ورود در M15
     
     # فیبوناچی OTE (Optimal Trade Entry)
-    FIB_OTE_LOW = 0.67
-    FIB_OTE_HIGH = 0.71
+    FIB_OTE_LOW = 0.71
+    FIB_OTE_HIGH = 0.79
 
 settings = Settings()
