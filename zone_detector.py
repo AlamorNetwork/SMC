@@ -3,6 +3,9 @@ from settings import settings
 
 class ZoneDetector:
     def find_order_blocks(self, df_h4):
+        """
+        پیدا کردن اوردر بلاک‌های صعودی و نزولی (OB) با تایید حجم بالای ۱.۵ برابر میانگین
+        """
         df = df_h4.copy()
         df['vol_ma20'] = df['volume'].rolling(window=20).mean()
         
@@ -18,20 +21,52 @@ class ZoneDetector:
             # پیدا کردن Bullish OB
             if df['close'].iloc[i] < df['open'].iloc[i] and df['close'].iloc[i+1] > df['open'].iloc[i+1] and is_volume_spike:
                 bullish_obs.append({
-                    'top': df['high'].iloc[i], 'bottom': df['low'].iloc[i], 'type': 'Bullish'
+                    'top': df['high'].iloc[i], 
+                    'bottom': df['low'].iloc[i], 
+                    'type': 'Bullish'
                 })
             # پیدا کردن Bearish OB
             elif df['close'].iloc[i] > df['open'].iloc[i] and df['close'].iloc[i+1] < df['open'].iloc[i+1] and is_volume_spike:
                 bearish_obs.append({
-                    'top': df['high'].iloc[i], 'bottom': df['low'].iloc[i], 'type': 'Bearish'
+                    'top': df['high'].iloc[i], 
+                    'bottom': df['low'].iloc[i], 
+                    'type': 'Bearish'
                 })
         return bullish_obs, bearish_obs
 
+    def find_fvgs(self, df_h4):
+        """
+        پیدا کردن گپ‌های ارزش منصفانه (FVG) در تایم‌فریم H4
+        """
+        fvgs = []
+        for i in range(2, len(df_h4)):
+            # Bullish FVG (عدم تعادل صعودی)
+            if df_h4['high'].iloc[i-2] < df_h4['low'].iloc[i]:
+                fvgs.append({
+                    'type': 'Bullish',
+                    'top': df_h4['low'].iloc[i],
+                    'bottom': df_h4['high'].iloc[i-2],
+                    'timestamp': df_h4.index[i-1]
+                })
+            # Bearish FVG (عدم تعادل نزولی)
+            elif df_h4['low'].iloc[i-2] > df_h4['high'].iloc[i]:
+                fvgs.append({
+                    'type': 'Bearish',
+                    'top': df_h4['low'].iloc[i-2],
+                    'bottom': df_h4['high'].iloc[i],
+                    'timestamp': df_h4.index[i-1]
+                })
+        return fvgs
+
     def calculate_ote_levels(self, main_leg):
+        """
+        محاسبه محدوده طلایی ورود OTE (اصلاح ۶۷٪ تا ۷۱٪ فیبوناچی)
+        """
         if main_leg["start"] is None or main_leg["end"] is None:
             return None, None
             
-        start, end = main_leg["start"], main_leg["end"]
+        start = main_leg["start"]
+        end = main_leg["end"]
         diff = abs(end - start)
         
         if main_leg["direction"] == "Bullish":
