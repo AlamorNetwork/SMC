@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>داشبورد ربات SMC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-[#050508] text-slate-300 min-h-screen">
+    
+    <header class="h-20 border-b border-white/5 bg-white/5 backdrop-blur-md flex items-center justify-between px-8">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-chart-line text-2xl text-emerald-400"></i>
+            <h1 class="text-xl font-bold text-white">مانیتورینگ لایو SMC</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-bold border border-emerald-500/20">
+                وضعیت: {{ bot_status }}
+            </span>
+            <a href="/logout" class="text-red-400 hover:text-red-300 font-bold text-sm"><i class="fa-solid fa-power-off ml-1"></i> خروج</a>
+        </div>
+    </header>
+
+    <main class="p-8 max-w-7xl mx-auto space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white/5 border border-white/10 p-6 rounded-2xl shadow-xl">
+                <div class="text-white/50 text-sm mb-2">تعداد ارزهای در حال مانیتور</div>
+                <div class="text-3xl font-bold text-white">{{ pairs|length }} نماد</div>
+            </div>
+            <div class="bg-white/5 border border-white/10 p-6 rounded-2xl shadow-xl">
+                <div class="text-white/50 text-sm mb-2">سیگنال‌های امروز</div>
+                <div class="text-3xl font-bold text-blue-400">0</div>
+            </div>
+            <div class="bg-white/5 border border-white/10 p-6 rounded-2xl shadow-xl">
+                <div class="text-white/50 text-sm mb-2">پوزیشن‌های باز</div>
+                <div class="text-3xl font-bold text-emerald-400">0</div>
+            </div>
+        </div>
+
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-xl mt-8">
+            <h2 class="text-lg font-bold text-white mb-4">واچ‌لیست فعال</h2>
+            <div class="flex flex-wrap gap-3">
+                {% for pair in pairs %}
+                <span class="px-4 py-2 bg-black/40 border border-white/10 rounded-xl text-sm font-bold text-white/80">
+                    {{ pair }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>

@@ -27,4 +27,6 @@ class Settings:
     FIB_OTE_LOW = 0.71
     FIB_OTE_HIGH = 0.79
 
+    WEB_USERNAME = os.getenv("WEB_USERNAME", "admin")
+    WEB_PASSWORD = os.getenv("WEB_PASSWORD", "admin")
 settings = Settings()
