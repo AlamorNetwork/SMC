@@ -25,9 +25,14 @@ class BacktestRequest(BaseModel):
     limit: int = 1000
 
 # ---- صفحات وب ----
+# ---- صفحات وب ----
 @app.get("/", response_class=HTMLResponse)
 async def get_dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    # به جای پاس دادن مستقیم، از آرگومان‌های نام‌گذاری شده (request= و name=) استفاده می‌کنیم
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html"
+    )
 
 # ---- API های واچ‌لیست ----
 @app.get("/api/watchlist")
