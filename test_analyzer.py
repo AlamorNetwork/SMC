@@ -19,23 +19,33 @@ def run_deep_test(symbol="APE/USDT"):
     trend, main_leg, break_type = analyzer.analyze_structure(df_h4)
     print(f"🔸 روند فعلی: {trend}")
     print(f"🔸 نوع شکست ساختار اخیر: {break_type}")
-    print(f"🔸 شروع موج اصلی (Start): {main_leg['start']} | 📅 زمان کندل: {main_leg['start_time']}")
-    print(f"🔸 پایان موج اصلی (End): {main_leg['end']} | 📅 زمان کندل: {main_leg['end_time']}")
+    
+    if main_leg["start"] is not None:
+        print(f"🔸 شروع موج اصلی (Start): {main_leg['start']} | 📅 زمان کندل: {main_leg['start_time']}")
+        print(f"🔸 پایان موج اصلی (End): {main_leg['end']}   | 📅 زمان کندل: {main_leg['end_time']}")
+        print(f"🔸 وضعیت اعتبار لگ: {'✅ معتبر (Tradeable)' if main_leg['is_valid'] else '❌ نامعتبر (Weak Leg)'}")
+        print("   چک‌لیست شروط لگ:")
+        for note in main_leg["validation_notes"]:
+            print(f"      {note}")
+    else:
+        print("🔸 لگ اصلی و معتبری یافت نشد.")
     print("-" * 40)
 
     print("\n--- 🧱 گزارش نواحی معاملاتی (تایم‌فریم H4) ---")
     bullish_obs, bearish_obs = detector.find_order_blocks(df_h4)
     fvgs = detector.find_fvgs(df_h4)
     
-    print(f"🔸 تعداد اوردر بلاک‌های صعودی معتبر: {len(bullish_obs)}")
+    print(f"🔸 تعداد اوردر بلاک‌های صعودی معتبر (با شرط هانت، FVG و قانون شدو): {len(bullish_obs)}")
     if bullish_obs:
         last_bull_ob = bullish_obs[-1]
-        print(f"   آخرین OB صعودی -> سقف: {last_bull_ob['top']} | کف: {last_bull_ob['bottom']} | 📅 زمان: {last_bull_ob['timestamp']}")
+        print(f"   آخرین OB -> سقف ورود: {last_bull_ob['top']} | کف ورود: {last_bull_ob['bottom']}")
+        print(f"   وضعیت شدو: {last_bull_ob['note']} | 📅 زمان: {last_bull_ob['timestamp']}")
 
-    print(f"🔸 تعداد اوردر بلاک‌های نزولی معتبر: {len(bearish_obs)}")
+    print(f"🔸 تعداد اوردر بلاک‌های نزولی معتبر (با شرط هانت، FVG و قانون شدو): {len(bearish_obs)}")
     if bearish_obs:
         last_bear_ob = bearish_obs[-1]
-        print(f"   آخرین OB نزولی -> سقف: {last_bear_ob['top']} | کف: {last_bear_ob['bottom']} | 📅 زمان: {last_bear_ob['timestamp']}")
+        print(f"   آخرین OB -> سقف ورود: {last_bear_ob['top']} | کف ورود: {last_bear_ob['bottom']}")
+        print(f"   وضعیت شدو: {last_bear_ob['note']} | 📅 زمان: {last_bear_ob['timestamp']}")
         
     print(f"🔸 تعداد گپ‌های ارزش منصفانه (FVG) پیدا شده: {len(fvgs)}")
     print("-" * 40)
@@ -46,7 +56,7 @@ def run_deep_test(symbol="APE/USDT"):
     if ote_low is not None and ote_high is not None:
         print(f"🔸 محدوده طلایی فیبوناچی بین ۷۱٪ تا ۷۹٪: از {round(ote_low, 4)} تا {round(ote_high, 4)}")
     else:
-        print("🔸 خطای محاسبه: موج اصلی برای رسم فیبوناچی پیدا نشد.")
+        print("🔸 خطای محاسبه: موج اصلی معتبر برای رسم فیبوناچی پیدا نشد.")
     print("-" * 40)
     
     print("\n✅ تست با موفقیت به پایان رسید.")
