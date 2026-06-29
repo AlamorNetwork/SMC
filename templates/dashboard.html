@@ -2,133 +2,235 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>داشبورد هوشمند SMC</title>
+    <title>SMC Quant Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        body { background: radial-gradient(circle at top left, #0f172a, #020617, #000000); color: #cbd5e1; }
-        .glass-panel { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(16px); }
-        .ob-card:hover { transform: scale(1.02); transition: all 0.2s ease; cursor: pointer; }
+        body { background: #020617; color: #cbd5e1; }
+        .glass-panel { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(12px); }
+        .sidebar { background: rgba(15, 23, 42, 0.8); border-left: 1px solid rgba(255,255,255,0.05); }
     </style>
 </head>
-<body class="min-h-screen flex flex-col font-sans relative overflow-x-hidden">
+<body class="h-screen overflow-hidden flex font-sans">
     <audio id="alarmSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 
-    <div x-data="dashboardApp()" x-init="connectWebSocket()" class="w-full flex-1 flex flex-col z-10 relative">
-        <header class="h-20 border-b border-white/10 glass-panel flex items-center justify-between px-8 sticky top-0 z-30">
-            <div class="flex items-center gap-4">
-                <i class="fa-solid fa-robot text-2xl text-emerald-500 animate-pulse"></i>
-                <h1 class="text-2xl font-bold text-white tracking-wide">رادار اسمارت مانی</h1>
-            </div>
-            <div class="flex items-center gap-4">
-                <span class="px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-sm font-bold flex items-center gap-2 text-emerald-400">
-                    <span x-text="bot_state.status"></span>
-                </span>
-            </div>
-        </header>
+    <div x-data="quantApp()" x-init="initApp()" class="flex w-full h-full relative">
+        
+        <div class="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+            <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-600/10 rounded-full blur-[100px]"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-600/10 rounded-full blur-[100px]"></div>
+        </div>
 
-        <main class="p-8 max-w-7xl mx-auto space-y-8 w-full flex-1">
-            
-            <div class="flex justify-between items-end">
-                <h2 class="text-xl font-bold text-white flex items-center gap-3">
-                    <i class="fa-solid fa-display text-emerald-500"></i> مانیتورینگ زنده جفت‌ارزها
-                </h2>
-                <div class="flex gap-2">
-                    <button @click="obFilter = 'all'" :class="obFilter === 'all' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-white/5 text-white/50 border-white/10'" class="px-4 py-2 text-sm rounded-lg border font-bold">همه OBها</button>
-                    <button @click="obFilter = 'unmitigated'" :class="obFilter === 'unmitigated' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-white/5 text-white/50 border-white/10'" class="px-4 py-2 text-sm rounded-lg border font-bold">فقط بکر (Unmitigated)</button>
-                    <button @click="obFilter = 'nearest'" :class="obFilter === 'nearest' ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : 'bg-white/5 text-white/50 border-white/10'" class="px-4 py-2 text-sm rounded-lg border font-bold">نزدیک‌ترین</button>
+        <aside class="w-64 sidebar h-full flex flex-col z-20 shadow-2xl">
+            <div class="p-6 border-b border-white/5 flex items-center gap-3">
+                <i class="fa-solid fa-layer-group text-2xl text-blue-500"></i>
+                <h1 class="text-xl font-bold text-white tracking-widest">SMC ENGINE</h1>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <button @click="currentTab = 'live'" :class="currentTab === 'live' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'text-gray-400 hover:bg-white/5 border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all">
+                    <i class="fa-solid fa-chart-line"></i> <span>مانیتورینگ زنده</span>
+                </button>
+                <button @click="currentTab = 'backtest'" :class="currentTab === 'backtest' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'text-gray-400 hover:bg-white/5 border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all">
+                    <i class="fa-solid fa-flask"></i> <span>موتور بک‌تست</span>
+                </button>
+                <button @click="currentTab = 'watchlist'" :class="currentTab === 'watchlist' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'text-gray-400 hover:bg-white/5 border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all">
+                    <i class="fa-solid fa-list-check"></i> <span>مدیریت واچ‌لیست</span>
+                </button>
+            </nav>
+            <div class="p-4 border-t border-white/5">
+                <div class="glass-panel p-3 rounded-xl text-center flex flex-col gap-1 text-xs">
+                    <span class="text-white/50">وضعیت هسته:</span>
+                    <span class="font-bold text-emerald-400 flex justify-center items-center gap-1">
+                        <i class="fa-solid fa-circle text-[8px] animate-ping"></i> <span x-text="bot_state.status"></span>
+                    </span>
                 </div>
             </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <template x-for="(data, symbol) in bot_state.market_data" :key="symbol">
-                    <div class="glass-panel p-6 rounded-3xl flex flex-col border-t border-t-white/20 transition-all duration-300">
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 class="text-2xl font-bold text-white tracking-wider" x-text="symbol"></h3>
-                                <div class="text-sm font-medium mt-1" 
-                                     :class="{'text-emerald-400': data.trend === 'Bullish', 'text-rose-400': data.trend === 'Bearish'}"
-                                     x-text="'روند: ' + data.trend">
-                                </div>
-                            </div>
-                            <div class="text-xl font-mono text-white/90 font-bold bg-black/40 px-3 py-1 rounded-lg" x-text="'$' + data.price"></div>
-                        </div>
-                        
-                        <div class="mb-4 p-3 rounded-xl bg-black/30 border border-black/50 text-sm font-medium">
-                            <span :class="data.color" x-text="data.msg"></span>
-                        </div>
+        </aside>
 
-                        <div class="space-y-2 mt-2 max-h-48 overflow-y-auto pr-2 scrollbar-thin">
-                            <template x-for="(ob, index) in data.obs" :key="index">
-                                <div x-show="
-                                    obFilter === 'all' || 
-                                    (obFilter === 'unmitigated' && !ob.is_mitigated) ||
-                                    (obFilter === 'nearest' && index === 0)
-                                " 
-                                @click="alert('جزئیات OB:\nزمان: ' + ob.timestamp + '\nنوع: ' + ob.note)"
-                                class="ob-card p-3 rounded-xl border border-white/5 bg-white/5 flex justify-between items-center text-xs">
-                                    <div class="flex flex-col">
-                                        <span class="font-bold" :class="ob.type === 'Bullish' ? 'text-emerald-400' : 'text-rose-400'" x-text="ob.type + ' OB'"></span>
-                                        <span class="text-white/50" x-text="'فاصله: $' + ob.distance"></span>
-                                    </div>
-                                    <div class="text-left flex flex-col items-end">
-                                        <span class="font-mono text-white/80" x-text="ob.bottom + ' - ' + ob.top"></span>
-                                        <span :class="ob.is_mitigated ? 'text-red-400' : 'text-blue-400'" class="font-bold text-[10px] bg-black/40 px-2 py-0.5 rounded mt-1" x-text="ob.is_mitigated ? 'مصرف شده' : 'بکر (Unmitigated)'"></span>
-                                    </div>
+        <main class="flex-1 h-full overflow-y-auto p-8 scrollbar-thin">
+            
+            <div x-show="currentTab === 'live'" x-transition class="space-y-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-white">بازار لایو</h2>
+                    <div class="flex gap-2">
+                        <button @click="obFilter = 'all'" :class="obFilter === 'all' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5'" class="px-4 py-2 text-sm rounded-lg border border-white/10 font-bold">همه OBها</button>
+                        <button @click="obFilter = 'unmitigated'" :class="obFilter === 'unmitigated' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5'" class="px-4 py-2 text-sm rounded-lg border border-white/10 font-bold">بکر (Unmitigated)</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <template x-for="(data, symbol) in bot_state.market_data" :key="symbol">
+                        <div class="glass-panel p-6 rounded-3xl flex flex-col border-t border-t-white/10 hover:border-blue-500/50 transition-all">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold text-white tracking-wider" x-text="symbol"></h3>
+                                    <div class="text-sm font-medium mt-1" :class="{'text-emerald-400': data.trend === 'Bullish', 'text-rose-400': data.trend === 'Bearish'}" x-text="'روند: ' + data.trend"></div>
                                 </div>
-                            </template>
+                                <div class="text-xl font-mono text-white/90 font-bold bg-black/40 px-3 py-1 rounded-lg" x-text="'$' + data.price"></div>
+                            </div>
+                            <div class="mb-4 p-3 rounded-xl bg-black/30 border border-black/50 text-sm font-medium"><span :class="data.color" x-text="data.msg"></span></div>
+                            <div class="space-y-2 mt-2 max-h-48 overflow-y-auto pr-2">
+                                <template x-for="(ob, index) in data.obs" :key="index">
+                                    <div x-show="obFilter === 'all' || (obFilter === 'unmitigated' && !ob.is_mitigated)" class="p-3 rounded-xl border border-white/5 bg-white/5 flex justify-between items-center text-xs">
+                                        <div class="flex flex-col">
+                                            <span class="font-bold" :class="ob.type === 'Bullish' ? 'text-emerald-400' : 'text-rose-400'" x-text="ob.type + ' OB'"></span>
+                                            <span class="text-white/50" x-text="'فاصله: $' + ob.distance"></span>
+                                        </div>
+                                        <div class="text-left flex flex-col items-end">
+                                            <span class="font-mono text-white/80" x-text="ob.bottom + ' - ' + ob.top"></span>
+                                            <span :class="ob.is_mitigated ? 'text-red-400' : 'text-blue-400'" class="font-bold text-[10px] bg-black/40 px-2 py-0.5 rounded mt-1" x-text="ob.is_mitigated ? 'مصرف شده' : 'بکر'"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'backtest'" x-transition style="display: none;" class="max-w-3xl mx-auto space-y-6">
+                <h2 class="text-2xl font-bold text-white mb-6">آزمایشگاه استراتژی (Backtest)</h2>
+                <div class="glass-panel p-8 rounded-3xl">
+                    <div class="flex gap-4 items-end">
+                        <div class="flex-1">
+                            <label class="block text-sm font-bold text-white/70 mb-2">نماد معاملاتی (مثلاً BTC/USDT)</label>
+                            <input x-model="btSymbol" type="text" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" placeholder="BTC/USDT">
+                        </div>
+                        <div class="w-32">
+                            <label class="block text-sm font-bold text-white/70 mb-2">تعداد کندل</label>
+                            <input x-model="btLimit" type="number" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none" value="1000">
+                        </div>
+                        <button @click="runBacktest()" :disabled="isBacktesting" class="bg-purple-600 hover:bg-purple-500 text-white px-8 py-3 rounded-xl font-bold transition-all disabled:opacity-50">
+                            <span x-show="!isBacktesting"><i class="fa-solid fa-play mr-2"></i> اجرای تست</span>
+                            <span x-show="isBacktesting"><i class="fa-solid fa-spinner fa-spin mr-2"></i> در حال پردازش...</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div x-show="btResult" x-transition class="glass-panel p-8 rounded-3xl mt-6 border-t border-purple-500/50">
+                    <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-square-poll-vertical text-purple-400"></i> نتایج تست <span x-text="btResult?.symbol" class="text-purple-300 ml-2"></span>
+                    </h3>
+                    <div class="grid grid-cols-3 gap-6 text-center">
+                        <div class="bg-black/30 p-4 rounded-2xl border border-emerald-500/20">
+                            <div class="text-sm text-white/50 mb-1">معاملات موفق</div>
+                            <div class="text-3xl font-bold text-emerald-400" x-text="btResult?.wins"></div>
+                        </div>
+                        <div class="bg-black/30 p-4 rounded-2xl border border-rose-500/20">
+                            <div class="text-sm text-white/50 mb-1">استاپ لاس‌ها</div>
+                            <div class="text-3xl font-bold text-rose-400" x-text="btResult?.losses"></div>
+                        </div>
+                        <div class="bg-black/30 p-4 rounded-2xl border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+                            <div class="text-sm text-white/50 mb-1">وین ریت (Win Rate)</div>
+                            <div class="text-3xl font-bold text-blue-400" x-text="btResult?.win_rate?.toFixed(2) + '%'"></div>
                         </div>
                     </div>
-                </template>
+                </div>
             </div>
+
+            <div x-show="currentTab === 'watchlist'" x-transition style="display: none;" class="max-w-2xl mx-auto space-y-6">
+                <h2 class="text-2xl font-bold text-white mb-6">واچ‌لیست زنده ربات</h2>
+                <div class="glass-panel p-6 rounded-3xl flex gap-4">
+                    <input x-model="newSymbol" @keydown.enter="addWatchlist()" type="text" class="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500" placeholder="مثال: SOL/USDT">
+                    <button @click="addWatchlist()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold transition-all">اضافه کردن</button>
+                </div>
+                
+                <div class="glass-panel rounded-3xl overflow-hidden">
+                    <template x-for="symbol in activeWatchlist" :key="symbol">
+                        <div class="flex justify-between items-center p-4 border-b border-white/5 bg-white/5 hover:bg-white/10 transition-all">
+                            <div class="font-bold text-lg text-white flex items-center gap-3">
+                                <i class="fa-brands fa-bitcoin text-yellow-500"></i> <span x-text="symbol"></span>
+                            </div>
+                            <button @click="removeWatchlist(symbol)" class="text-rose-400 hover:text-white hover:bg-rose-600 px-4 py-2 rounded-lg text-sm font-bold transition-all"><i class="fa-solid fa-trash"></i> حذف</button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
         </main>
     </div>
 
     <script>
-        function dashboardApp() {
+        function quantApp() {
             return {
-                obFilter: 'all', // all, unmitigated, nearest
-                bot_state: {
-                    status: "اتصال به هسته...",
-                    active_pairs: [],
-                    market_data: {}
-                },
+                currentTab: 'live',
+                obFilter: 'unmitigated',
                 
+                // بک تست
+                btSymbol: 'BTC/USDT',
+                btLimit: 500,
+                isBacktesting: false,
+                btResult: null,
+                
+                // واچ لیست
+                newSymbol: '',
+                activeWatchlist: [],
+                
+                bot_state: { status: "اتصال به هسته...", market_data: {} },
+                
+                initApp() {
+                    this.connectWebSocket();
+                    this.fetchWatchlist();
+                },
+
+                // --- مدیریت وب‌سوکت ---
                 connectWebSocket() {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const wsUrl = `${protocol}//${window.location.host}/ws`;
-                    const ws = new WebSocket(wsUrl);
-
+                    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
                     ws.onmessage = (event) => {
-                        const newData = JSON.parse(event.data);
-                        this.bot_state = newData;
-                        
-                        // بررسی تریگر آلارم از سمت سرور
-                        if (newData.alarm_trigger) {
-                            this.playAlarm(newData.alarm_symbol);
-                        }
+                        const data = JSON.parse(event.data);
+                        this.bot_state = data;
+                        this.activeWatchlist = data.active_pairs;
+                        if(data.alarm_trigger) document.getElementById('alarmSound').play().catch(e=>{});
                     };
-
                     ws.onclose = () => {
-                        this.bot_state.status = "اتصال قطع شد 🔴";
+                        this.bot_state.status = "قطع ارتباط 🔴";
                         setTimeout(() => this.connectWebSocket(), 3000);
                     };
                 },
-                
-                playAlarm(symbol) {
-                    const audio = document.getElementById('alarmSound');
-                    // برای جلوگیری از پخش مکرر در هر 10 ثانیه، می‌توانیم چک کنیم
-                    audio.play().catch(e => console.log("مرورگر اجازه پخش صدا را نداد. لطفا روی صفحه کلیک کنید."));
-                    
-                    // نمایش نوتیفیکیشن در ویندوز/موبایل (اگر مرورگر اجازه دهد)
-                    if (Notification.permission === "granted") {
-                        new Notification("هشدار SMC!", { body: `قیمت به اوردربلاک ${symbol} رسید!` });
-                    } else if (Notification.permission !== "denied") {
-                        Notification.requestPermission().then(permission => {
-                            if (permission === "granted") new Notification("SMC", { body: "آلارم فعال شد" });
+
+                // --- توابع API ---
+                async fetchWatchlist() {
+                    let res = await fetch('/api/watchlist');
+                    let data = await res.json();
+                    this.activeWatchlist = data.watchlist;
+                },
+                async addWatchlist() {
+                    if(!this.newSymbol) return;
+                    await fetch('/api/watchlist/add', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({symbol: this.newSymbol.toUpperCase()})
+                    });
+                    this.newSymbol = '';
+                    this.fetchWatchlist();
+                },
+                async removeWatchlist(symbol) {
+                    await fetch('/api/watchlist/remove', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({symbol: symbol})
+                    });
+                    this.fetchWatchlist();
+                },
+                async runBacktest() {
+                    if(!this.btSymbol) return;
+                    this.isBacktesting = true;
+                    this.btResult = null;
+                    try {
+                        let res = await fetch('/api/backtest', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({symbol: this.btSymbol.toUpperCase(), limit: parseInt(this.btLimit)})
                         });
+                        let data = await res.json();
+                        if(data.status === 'success') this.btResult = data.data;
+                        else alert("خطا: " + data.message);
+                    } catch(e) {
+                        alert("خطا در ارتباط با سرور");
                     }
+                    this.isBacktesting = false;
                 }
             }
         }

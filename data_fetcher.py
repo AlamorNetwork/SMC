@@ -48,3 +48,16 @@ class DataFetcher:
         df_h4 = self.get_candles(symbol, settings.TIMEFRAME_STRUCTURE, limit=150)
         df_m15 = self.get_candles(symbol, settings.TIMEFRAME_ENTRY, limit=200)
         return df_h4, df_m15
+    
+    def get_current_price(self, symbol):
+        """
+        آموزش کد: این تابع فقط قیمت لحظه‌ای (Live Price) را از صرافی می‌گیرد.
+        این درخواست بسیار سبک است و می‌توان آن را هر ثانیه صدا زد بدون اینکه صرافی ما را مسدود کند.
+        """
+        try:
+            # گرفتن دیتای تیکر (قیمت فعلی بازار)
+            ticker = self.exchange.fetch_ticker(symbol)
+            return ticker['last']
+        except Exception as e:
+            print(f"❌ خطا در دریافت قیمت لایو {symbol}: {e}")
+            return None

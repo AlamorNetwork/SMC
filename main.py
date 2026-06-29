@@ -29,7 +29,7 @@ async def execute_bot_loop():
             bot_state["alarm_trigger"] = False # ریست کردن آلارم در هر چرخه
             await manager.broadcast(bot_state)
             
-            for symbol in settings.WATCHLIST:
+            for symbol in bot_state["active_pairs"]:
                 # دریافت داده‌ها
                 df_h4, df_m15 = fetcher.fetch_all_required_data(symbol)
                 if df_h4 is None or df_m15 is None:

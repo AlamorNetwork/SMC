@@ -1,66 +1,75 @@
-import asyncio
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from settings import settings
-
-from main import execute_bot_loop
-from shared_state import bot_state
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+import asyncio
 from ws_manager import manager
+from shared_state import bot_state
+from settings import settings
+from backtester import SMCBacktester # فراخوانی موتور بک‌تست
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("🌐 راه‌اندازی سرور وب و موتور SMC...")
-    # اجرای حلقه ربات به عنوان یک تسک ناهمگام در پس‌زمینه
-    asyncio.create_task(execute_bot_loop())
-    yield
-    print("🛑 سرور خاموش شد.")
-
-app = FastAPI(title="SMC Bot Panel", lifespan=lifespan)
+app = FastAPI(title="SMC Institutional Terminal")
 templates = Jinja2Templates(directory="templates")
 
-# --- تنظیمات لاگین همانند قبل سر جایش است ---
-def verify_cookie(request: Request):
-    if request.cookies.get("auth_session") != "authenticated":
-        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
-    return True
+# مقداردهی اولیه واچ‌لیست در مموری
+if not bot_state["active_pairs"]:
+    bot_state["active_pairs"] = settings.WATCHLIST.copy()
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse(request=request, name="login.html", context={"error": None})
+# ---- مدل‌های دیتا برای API ----
+class WatchlistRequest(BaseModel):
+    symbol: str
 
-@app.post("/login")
-async def do_login(request: Request, username: str = Form(...), password: str = Form(...)):
-    if username == settings.WEB_USERNAME and password == settings.WEB_PASSWORD:
-        response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-        response.set_cookie(key="auth_session", value="authenticated", max_age=86400)
-        return response
-    return templates.TemplateResponse(request=request, name="login.html", context={"error": "نام کاربری یا رمز عبور اشتباه است."})
+class BacktestRequest(BaseModel):
+    symbol: str
+    limit: int = 1000
 
-@app.get("/logout")
-async def logout():
-    response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    response.delete_cookie("auth_session")
-    return response
+# ---- صفحات وب ----
+@app.get("/", response_class=HTMLResponse)
+async def get_dashboard(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
-# --- مسیر اصلی داشبورد ---
-@app.get("/", response_class=HTMLResponse, dependencies=[Depends(verify_cookie)])
-async def dashboard(request: Request):
-    return templates.TemplateResponse(
-        request=request, 
-        name="dashboard.html", 
-        # مقادیر اولیه هنگام لود صفحه
-        context={"state": bot_state}
-    )
+# ---- API های واچ‌لیست ----
+@app.get("/api/watchlist")
+async def get_watchlist():
+    return {"watchlist": bot_state["active_pairs"]}
 
-# --- مسیر ارتباط لایو وب‌سوکت ---
+@app.post("/api/watchlist/add")
+async def add_to_watchlist(req: WatchlistRequest):
+    symbol = req.symbol.upper()
+    if symbol not in bot_state["active_pairs"]:
+        bot_state["active_pairs"].append(symbol)
+    return {"status": "success", "watchlist": bot_state["active_pairs"]}
+
+@app.post("/api/watchlist/remove")
+async def remove_from_watchlist(req: WatchlistRequest):
+    symbol = req.symbol.upper()
+    if symbol in bot_state["active_pairs"]:
+        bot_state["active_pairs"].remove(symbol)
+        # پاک کردن دیتای آن از داشبورد
+        if symbol in bot_state["market_data"]:
+            del bot_state["market_data"][symbol]
+    return {"status": "success", "watchlist": bot_state["active_pairs"]}
+
+# ---- API موتور بک‌تست ----
+@app.post("/api/backtest")
+async def run_backtest(req: BacktestRequest):
+    try:
+        tester = SMCBacktester()
+        # اجرای بک‌تست در یک ترد جداگانه تا سرور قفل نشود
+        results = await asyncio.to_thread(tester.run_backtest, [req.symbol.upper()], req.limit)
+        if results:
+            return {"status": "success", "data": results[0]}
+        return {"status": "error", "message": "دیتای کافی یافت نشد"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# وب‌سوکت برای دیتای لایو (کدهای قبلی سرجایش است)
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket):
     await manager.connect(websocket)
     try:
         while True:
-            # منتظر می‌ماند اما هیچ دیتایی از کلاینت نمی‌گیرد (ارتباط یک‌طرفه سرور به فرانت)
             await websocket.receive_text()
-    except WebSocketDisconnect:
+    except:
         manager.disconnect(websocket)
