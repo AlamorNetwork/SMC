@@ -23,11 +23,13 @@ class Settings:
     # فیلترهای حجمی و فنی
     VOLUME_MULTIPLIER_IMPULSE = 1.5  # ضریب حجم برای تشخیص حرکت قدرتمند (Impulse)
     VOLUME_MULTIPLIER_ENTRY = 1.2    # ضریب حجم برای تاییدیه کندل ورود در M15
-    
+    # در فایل settings.py اضافه شود:
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:123456@localhost:5432/smc_db")
     # فیبوناچی OTE (Optimal Trade Entry)
     FIB_OTE_LOW = 0.71
     FIB_OTE_HIGH = 0.79
 
     WEB_USERNAME = os.getenv("WEB_USERNAME", "admin")
     WEB_PASSWORD = os.getenv("WEB_PASSWORD", "admin")
+
 settings = Settings()
