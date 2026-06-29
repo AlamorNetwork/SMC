@@ -31,101 +31,91 @@ async def execute_bot_loop():
             for symbol in settings.WATCHLIST:
                 print(f"\n🔍 در حال پردازش {symbol}...")
                 
-                # ۱. دریافت داده‌ها
+                # دریافت داده‌ها
                 df_h4, df_m15 = fetcher.fetch_all_required_data(symbol)
-                if df_h4 is None or df_m15 is None: 
+                if df_h4 is None or df_m15 is None:
+                    bot_state["market_data"][symbol] = {"trend": "Error", "price": "-", "msg": "خطا در دریافت دیتا", "color": "text-red-500"}
                     continue
                     
-                # ۲. تحلیل ساختار بازار
                 trend, main_leg, break_type = analyzer.analyze_structure(df_h4)
                 if trend == "Neutral" or not main_leg["is_valid"]: 
-                    print("   ⚠️ روند خنثی است یا لگ نامعتبر است.")
+                    msg = "روند خنثی یا لگ نامعتبر"
+                    print(f"   ⚠️ {msg}")
+                    bot_state["market_data"][symbol] = {"trend": "Neutral", "price": "-", "msg": msg, "color": "text-gray-400"}
                     continue
                     
-                # چاپ اطلاعات شفاف از تشخیص لگ ربات
-                print(f"   📊 روند: {trend} | شروع لگ: {main_leg['start']} | پایان لگ: {main_leg['end']} | آخرین شکست: {break_type}")
-                    
-                # ۳. پیدا کردن اوردربلاک‌های معتبر
-                bullish_obs, bearish_obs = detector.find_order_blocks(df_h4)
                 current_price = df_m15['close'].iloc[-1]
-                print(f"   💵 قیمت فعلی (M15): {current_price}")
+                bullish_obs, bearish_obs = detector.find_order_blocks(df_h4)
                 
+                status_msg = "در حال جستجوی اوردربلاک..."
+                color_class = "text-blue-400"
+
                 # ================= بررسی سیگنال خرید =================
                 if trend == "Bullish" and bullish_obs:
                     last_ob = bullish_obs[-1]
-                    print(f"   🧱 اوردربلاک صعودی یافت شد (محدوده: {last_ob['bottom']} تا {last_ob['top']}). در حال فیلتر کردن...")
-                    
                     if last_ob['is_mitigated']:
-                        print("   ❌ رد شد: اوردربلاک مصرف (Mitigate) شده است.")
-                        continue
-                        
-                    in_discount = detector.check_premium_discount(last_ob['top'], main_leg, "Bullish")
-                    if not in_discount:
-                        print("   ❌ رد شد: قیمت ورود در ناحیه گران (Premium) قرار دارد.")
-                        continue
-                        
-                    has_inducement = analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bullish")
-                    if not has_inducement:
-                        print("   ❌ رد شد: فاقد تله القا (Inducement).")
-                        continue
-
-                    # اگر از فیلترهای بالا عبور کند، یعنی OB طلایی و آماده است!
-                    if last_ob['bottom'] <= current_price <= last_ob['top'] * 1.01:
-                        is_cbs = filter_engine.check_cbs_entry(df_h4, "Bullish")
-                        is_choch = filter_engine.check_choch_entry(df_m15, "Bullish")
-                        
-                        if is_cbs or is_choch:
-                            entry_type = "CBS" if is_cbs else "CHoCH"
-                            stop_loss = last_ob['bottom'] * 0.998
-                            pos_size = risk_eng.calculate_position_size(SIMULATED_BALANCE, current_price, stop_loss)
-                            tp1, tp2 = risk_eng.define_trade_targets(current_price, stop_loss, "Bullish")
-                            print(f"   ✅ سیگنال خرید ({entry_type}) صادر شد! حجم: {pos_size} ، تارگت: {tp2}")
+                        status_msg = "اوردربلاک صعودی مصرف شده (Mitigated) ❌"
+                        color_class = "text-red-400"
+                    elif not detector.check_premium_discount(last_ob['top'], main_leg, "Bullish"):
+                        status_msg = "قیمت در ناحیه گران (Premium) است ❌"
+                        color_class = "text-orange-400"
+                    elif not analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bullish"):
+                        status_msg = "فاقد تله القا (Inducement) ❌"
+                        color_class = "text-orange-400"
+                    elif last_ob['bottom'] <= current_price <= last_ob['top'] * 1.01:
+                        if filter_engine.check_cbs_entry(df_h4, "Bullish") or filter_engine.check_choch_entry(df_m15, "Bullish"):
+                            status_msg = "✅ سیگنال خرید صادر شد!"
+                            color_class = "text-emerald-400"
+                            bot_state["signals_today"] += 1
                         else:
-                            print("   ⏳ قیمت در ناحیه است اما منتظر تاییدیه M15 (پوشا+حجم) یا CBS هستیم...")
+                            status_msg = "⏳ منتظر تاییدیه M15 (پوشا+حجم)"
+                            color_class = "text-yellow-400"
                     else:
-                        print(f"   🎯 اوردربلاک طلایی و معتبر است! اما قیمت هنوز به آن نرسیده. (فاصله: {abs(current_price - last_ob['top']):.4f} دلار)")
-                
+                        dist = abs(current_price - last_ob['top'])
+                        status_msg = f"🎯 اوردربلاک طلایی معتبر! فاصله: {dist:.4f}"
+                        color_class = "text-emerald-400"
+
                 # ================= بررسی سیگنال فروش =================
                 elif trend == "Bearish" and bearish_obs:
                     last_ob = bearish_obs[-1]
-                    print(f"   🧱 اوردربلاک نزولی یافت شد (محدوده: {last_ob['bottom']} تا {last_ob['top']}). در حال فیلتر کردن...")
-                    
                     if last_ob['is_mitigated']:
-                        print("   ❌ رد شد: اوردربلاک مصرف شده است.")
-                        continue
-                        
-                    in_premium = detector.check_premium_discount(last_ob['bottom'], main_leg, "Bearish")
-                    if not in_premium:
-                        print("   ❌ رد شد: قیمت در ناحیه ارزان (Discount) است. فروش ممنوع!")
-                        continue
-                        
-                    has_inducement = analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bearish")
-                    if not has_inducement:
-                        print("   ❌ رد شد: فاقد القا (Inducement).")
-                        continue
-
-                    # بررسی برخورد قیمت به OB
-                    if last_ob['bottom'] * 0.99 <= current_price <= last_ob['top']:
-                        is_cbs = filter_engine.check_cbs_entry(df_h4, "Bearish")
-                        is_choch = filter_engine.check_choch_entry(df_m15, "Bearish")
-                        
-                        if is_cbs or is_choch:
-                            entry_type = "CBS" if is_cbs else "CHoCH"
-                            stop_loss = last_ob['top'] * 1.002 
-                            pos_size = risk_eng.calculate_position_size(SIMULATED_BALANCE, current_price, stop_loss)
-                            tp1, tp2 = risk_eng.define_trade_targets(current_price, stop_loss, "Bearish")
-                            print(f"   🔻 سیگنال فروش ({entry_type}) صادر شد! حجم: {pos_size} ، تارگت: {tp2}")
+                        status_msg = "اوردربلاک نزولی مصرف شده (Mitigated) ❌"
+                        color_class = "text-red-400"
+                    elif not detector.check_premium_discount(last_ob['bottom'], main_leg, "Bearish"):
+                        status_msg = "قیمت در ناحیه ارزان (Discount) است ❌"
+                        color_class = "text-orange-400"
+                    elif not analyzer.check_inducement(df_h4, last_ob['timestamp'], "Bearish"):
+                        status_msg = "فاقد تله القا (Inducement) ❌"
+                        color_class = "text-orange-400"
+                    elif last_ob['bottom'] * 0.99 <= current_price <= last_ob['top']:
+                        if filter_engine.check_cbs_entry(df_h4, "Bearish") or filter_engine.check_choch_entry(df_m15, "Bearish"):
+                            status_msg = "🔻 سیگنال فروش صادر شد!"
+                            color_class = "text-rose-400"
+                            bot_state["signals_today"] += 1
                         else:
-                            print("   ⏳ قیمت در ناحیه است اما منتظر تاییدیه M15 (پوشا+حجم) یا CBS هستیم...")
+                            status_msg = "⏳ منتظر تاییدیه M15 (پوشا+حجم)"
+                            color_class = "text-yellow-400"
                     else:
-                        print(f"   🎯 اوردربلاک طلایی و معتبر است! اما قیمت هنوز به آن نرسیده. (فاصله: {abs(current_price - last_ob['bottom']):.4f} دلار)")
+                        dist = abs(current_price - last_ob['bottom'])
+                        status_msg = f"🎯 اوردربلاک طلایی معتبر! فاصله: {dist:.4f}"
+                        color_class = "text-rose-400"
+
+                # ذخیره اطلاعات برای ارسال به وب‌سایت
+                bot_state["market_data"][symbol] = {
+                    "trend": trend,
+                    "price": f"{current_price:.4f}",
+                    "msg": status_msg,
+                    "color": color_class
+                }
+                print(f"   {status_msg}")
                             
             now = datetime.now().strftime("%H:%M:%S")
-            bot_state["last_update"] = f"آخرین پردازش: {now}"
-            bot_state["status"] = "آماده به کار ✅"
+            bot_state["last_update"] = f"آخرین بروزرسانی: {now}"
+            bot_state["status"] = "آماده شکار ✅"
+            
+            # ارسال تمام دیتاها (از جمله مارکت دیتا) به فرانت‌اند
             await manager.broadcast(bot_state)
             
-            # خواب ربات را به 10 ثانیه کاهش دادیم تا زنده بماند
             print(f"\n⏳ استراحت کوتاه ربات... ({now})")
             await asyncio.sleep(10) 
             

@@ -2,58 +2,95 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>داشبورد ربات SMC</title>
+    <title>داشبورد هوشمند SMC</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        body { background-color: #050508; color: #cbd5e1; }
-        .glass-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); backdrop-filter: blur(20px); }
+        body { 
+            background: radial-gradient(circle at top left, #0f172a, #020617, #000000); 
+            color: #cbd5e1; 
+        }
+        /* افکت شیشه‌ای بسیار جذاب */
+        .glass-panel { 
+            background: rgba(255, 255, 255, 0.03); 
+            border: 1px solid rgba(255, 255, 255, 0.08); 
+            backdrop-filter: blur(16px); 
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .glow-green { text-shadow: 0 0 10px rgba(16, 185, 129, 0.7); }
+        .glow-red { text-shadow: 0 0 10px rgba(244, 63, 94, 0.7); }
     </style>
 </head>
-<body class="min-h-screen flex flex-col font-sans">
-    
-    <div x-data="dashboardApp()" x-init="connectWebSocket()" class="w-full flex-1 flex flex-col">
+<body class="min-h-screen flex flex-col font-sans relative overflow-x-hidden">
+    <div class="fixed top-0 left-1/4 w-96 h-96 bg-emerald-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+    <div class="fixed bottom-0 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+
+    <div x-data="dashboardApp()" x-init="connectWebSocket()" class="w-full flex-1 flex flex-col z-10 relative">
         
-        <header class="h-20 border-b border-white/5 bg-black/20 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-30">
-            <div class="flex items-center gap-3">
-                <i class="fa-solid fa-chart-line text-2xl text-emerald-400"></i>
-                <h1 class="text-xl font-bold text-white">مانیتورینگ لایو SMC</h1>
+        <header class="h-20 border-b border-white/10 glass-panel flex items-center justify-between px-8 sticky top-0 z-30">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-blue-500 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+                    <i class="fa-solid fa-robot text-white"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-white tracking-wide">رادار اسمارت مانی</h1>
             </div>
             <div class="flex items-center gap-4">
-                <span class="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-bold border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                      x-text="'وضعیت: ' + bot_state.status">
+                <span class="px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-sm font-bold flex items-center gap-2"
+                      :class="{'text-emerald-400': bot_state.status.includes('آماده'), 'text-yellow-400': !bot_state.status.includes('آماده')}">
+                    <i class="fa-solid fa-circle-bolt animate-pulse"></i>
+                    <span x-text="bot_state.status"></span>
                 </span>
-                <a href="/logout" class="text-red-400 hover:text-red-300 font-bold text-sm"><i class="fa-solid fa-arrow-right-from-bracket transform rotate-180 ml-1"></i> خروج</a>
+                <a href="/logout" class="text-rose-400/80 hover:text-rose-400 font-bold text-sm bg-rose-500/10 px-4 py-2 rounded-xl transition-all">خروج <i class="fa-solid fa-power-off ml-1"></i></a>
             </div>
         </header>
 
-        <main class="p-8 max-w-7xl mx-auto space-y-6 w-full flex-1">
+        <main class="p-8 max-w-7xl mx-auto space-y-8 w-full flex-1">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass-panel p-6 rounded-2xl shadow-xl hover:bg-white/5 transition-colors">
-                    <div class="text-white/50 text-sm mb-2">تعداد ارزهای در حال مانیتور</div>
-                    <div class="text-3xl font-bold text-white" x-text="bot_state.active_pairs.length + ' نماد'"></div>
-                    <div class="text-xs text-emerald-400/80 mt-3" x-text="bot_state.last_update"></div>
+                <div class="glass-panel p-6 rounded-3xl transition-transform hover:scale-105">
+                    <div class="text-white/50 text-sm mb-1 flex items-center gap-2"><i class="fa-solid fa-satellite-dish"></i> وضعیت آپدیت</div>
+                    <div class="text-xl font-bold text-blue-400 mt-2" x-text="bot_state.last_update"></div>
                 </div>
-                <div class="glass-panel p-6 rounded-2xl shadow-xl hover:bg-white/5 transition-colors relative overflow-hidden">
-                    <div class="text-white/50 text-sm mb-2">سیگنال‌های باز / امروز</div>
-                    <div class="text-3xl font-bold text-blue-400" x-text="bot_state.open_positions + ' / ' + bot_state.signals_today"></div>
-                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-blue-500 rounded-full blur-[40px] opacity-20 animate-pulse" x-show="bot_state.signals_today > 0"></div>
+                <div class="glass-panel p-6 rounded-3xl transition-transform hover:scale-105 relative overflow-hidden">
+                    <div class="text-white/50 text-sm mb-1 flex items-center gap-2"><i class="fa-solid fa-crosshairs"></i> سیگنال‌های امروز</div>
+                    <div class="text-3xl font-bold text-emerald-400 mt-2" x-text="bot_state.signals_today"></div>
                 </div>
-                <div class="glass-panel p-6 rounded-2xl shadow-xl hover:bg-white/5 transition-colors">
-                    <div class="text-white/50 text-sm mb-2">سود / زیان کل</div>
-                    <div class="text-3xl font-bold text-emerald-400" x-text="'% ' + bot_state.total_pnl"></div>
+                <div class="glass-panel p-6 rounded-3xl transition-transform hover:scale-105">
+                    <div class="text-white/50 text-sm mb-1 flex items-center gap-2"><i class="fa-solid fa-wallet"></i> سود / زیان (PnL)</div>
+                    <div class="text-3xl font-bold text-purple-400 mt-2" x-text="'% ' + bot_state.total_pnl"></div>
                 </div>
             </div>
 
-            <div class="glass-panel rounded-2xl p-6 shadow-xl mt-8">
-                <h2 class="text-lg font-bold text-white mb-6 border-b border-white/10 pb-3"><i class="fa-solid fa-list-check ml-2"></i>واچ‌لیست فعال</h2>
-                <div class="flex flex-wrap gap-3">
-                    <template x-for="pair in bot_state.active_pairs" :key="pair">
-                        <span class="px-4 py-2 bg-black/40 border border-white/10 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:border-emerald-500/50 transition-all cursor-pointer"
-                              x-text="pair">
-                        </span>
+            <div>
+                <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                    <i class="fa-solid fa-display text-emerald-500"></i> مانیتورینگ زنده جفت‌ارزها
+                </h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <template x-for="(data, symbol) in bot_state.market_data" :key="symbol">
+                        <div class="glass-panel p-6 rounded-3xl flex flex-col justify-between border-t border-t-white/20 hover:border-emerald-500/50 transition-all duration-300">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold text-white tracking-wider" x-text="symbol"></h3>
+                                    <div class="text-sm font-medium mt-1" 
+                                         :class="{'text-emerald-400': data.trend === 'Bullish', 'text-rose-400': data.trend === 'Bearish', 'text-gray-400': data.trend === 'Neutral'}"
+                                         x-text="'روند: ' + data.trend">
+                                    </div>
+                                </div>
+                                <div class="text-xl font-mono text-white/90 font-bold bg-black/40 px-3 py-1 rounded-lg" x-text="'$' + data.price"></div>
+                            </div>
+                            
+                            <div class="mt-4 p-3 rounded-xl bg-black/30 border border-black/50 text-sm font-medium">
+                                <span :class="data.color" x-text="data.msg"></span>
+                            </div>
+                        </div>
                     </template>
+                </div>
+                
+                <div x-show="Object.keys(bot_state.market_data).length === 0" class="text-center py-10 glass-panel rounded-3xl">
+                    <i class="fa-solid fa-spinner fa-spin text-4xl text-emerald-500 mb-4"></i>
+                    <p class="text-white/60">در حال دریافت و تحلیل کندل‌ها...</p>
                 </div>
             </div>
         </main>
@@ -62,32 +99,28 @@
     <script>
         function dashboardApp() {
             return {
-                // مقادیر اولیه از سمت سرور
                 bot_state: {
-                    status: "{{ state.status }}",
-                    active_pairs: {{ state.active_pairs | tojson | safe }},
-                    signals_today: {{ state.signals_today }},
-                    open_positions: {{ state.open_positions }},
-                    total_pnl: {{ state.total_pnl }},
-                    last_update: "{{ state.last_update }}"
+                    status: "اتصال به هسته...",
+                    active_pairs: [],
+                    signals_today: 0,
+                    open_positions: 0,
+                    total_pnl: 0,
+                    last_update: "در حال همگام‌سازی...",
+                    market_data: {}
                 },
                 
                 connectWebSocket() {
-                    // ساخت لینک وب‌سوکت داینامیک
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                     const wsUrl = `${protocol}//${window.location.host}/ws`;
                     const ws = new WebSocket(wsUrl);
 
-                    ws.onopen = () => console.log("🟢 متصل به هسته SMC...");
+                    ws.onopen = () => console.log("🟢 متصل به وب‌سوکت");
                     
-                    // به محض دریافت پیام، کل مقادیر در کسری از ثانیه روی صفحه آپدیت می‌شود
                     ws.onmessage = (event) => {
                         this.bot_state = JSON.parse(event.data);
-                        console.log("لایو آپدیت:", this.bot_state);
                     };
 
                     ws.onclose = () => {
-                        console.log("🔴 ارتباط قطع شد. تلاش مجدد...");
                         this.bot_state.status = "اتصال قطع شد 🔴";
                         setTimeout(() => this.connectWebSocket(), 3000);
                     };
