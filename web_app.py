@@ -1,27 +1,26 @@
-import threading
+import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from settings import settings
 
-# ایمپورت کردن موتور ربات و حافظه مشترک
 from main import execute_bot_loop
 from shared_state import bot_state
+from ws_manager import manager
 
-# این بخش ربات را هنگام روشن شدن پنل وب استارت می‌زند
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🌐 پنل وب در حال روشن شدن است...")
-    # روشن کردن موتور اصلی ربات در یک پردازش موازی (Background Thread)
-    bot_thread = threading.Thread(target=execute_bot_loop, daemon=True)
-    bot_thread.start()
+    print("🌐 راه‌اندازی سرور وب و موتور SMC...")
+    # اجرای حلقه ربات به عنوان یک تسک ناهمگام در پس‌زمینه
+    asyncio.create_task(execute_bot_loop())
     yield
-    print("🛑 سرور وب خاموش شد.")
+    print("🛑 سرور خاموش شد.")
 
 app = FastAPI(title="SMC Bot Panel", lifespan=lifespan)
 templates = Jinja2Templates(directory="templates")
 
+# --- تنظیمات لاگین همانند قبل سر جایش است ---
 def verify_cookie(request: Request):
     if request.cookies.get("auth_session") != "authenticated":
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
@@ -45,18 +44,23 @@ async def logout():
     response.delete_cookie("auth_session")
     return response
 
+# --- مسیر اصلی داشبورد ---
 @app.get("/", response_class=HTMLResponse, dependencies=[Depends(verify_cookie)])
 async def dashboard(request: Request):
-    # دیتا را از حافظه مشترک می‌خوانیم و به HTML پاس می‌دهیم
     return templates.TemplateResponse(
         request=request, 
         name="dashboard.html", 
-        context={
-            "bot_status": bot_state["status"],
-            "pairs": bot_state["active_pairs"],
-            "signals_today": bot_state["signals_today"],
-            "open_positions": bot_state["open_positions"],
-            "total_pnl": bot_state["total_pnl"],
-            "last_update": bot_state["last_update"]
-        }
+        # مقادیر اولیه هنگام لود صفحه
+        context={"state": bot_state}
     )
+
+# --- مسیر ارتباط لایو وب‌سوکت ---
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # منتظر می‌ماند اما هیچ دیتایی از کلاینت نمی‌گیرد (ارتباط یک‌طرفه سرور به فرانت)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)

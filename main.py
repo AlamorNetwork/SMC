@@ -1,4 +1,6 @@
 import time
+import asyncio
+from datetime import datetime
 from settings import settings
 from data_fetcher import DataFetcher
 from market_structure import MarketStructureAnalyzer
@@ -6,8 +8,9 @@ from zone_detector import ZoneDetector
 from liquidity_filter import LiquidityAndConfirmationFilter
 from risk_manager import RiskManager
 from shared_state import bot_state  # <--- اضافه کردن حافظه مشترک
-def execute_bot_loop():
-    print("🚀 ربات هوشمند SMC Toobit فعال شد...")
+from ws_manager import manager
+async def execute_bot_loop():
+    print("🚀 موتور تحلیلگر SMC ناهمگام (Async) فعال شد...")
     
     fetcher = DataFetcher()
     analyzer = MarketStructureAnalyzer()
@@ -15,11 +18,14 @@ def execute_bot_loop():
     filter_engine = LiquidityAndConfirmationFilter()
     risk_eng = RiskManager()
     
-    SIMULATED_BALANCE = 1000.0  # سرمایه فرضی
     bot_state["active_pairs"] = settings.WATCHLIST
+    
     while True:
         try:
+            # 1. آپدیت وضعیت و ارسال آنی به فرانت‌اند
             bot_state["status"] = "در حال پردازش بازار ⏳"
+            await manager.broadcast(bot_state)
+            
             for symbol in settings.WATCHLIST:
                 print(f"\n🔍 در حال پردازش {symbol}...")
                 
@@ -62,13 +68,21 @@ def execute_bot_loop():
                             tp1, tp2 = risk_eng.define_trade_targets(current_price, stop_loss, "Bearish")
                             
                             print(f"🔻 سیگنال فروش معتبر صادر شد! حجم: {pos} ، تارگت: {tp2}")
-                            
-            print("\n⏳ خواب ربات به مدت 5 دقیقه تا پردازش بعدی...")
-            time.sleep(300)
+                await asyncio.sleep(0.1)              
+            now = datetime.now().strftime("%H:%M:%S")
+            bot_state["last_update"] = f"آخرین پردازش: {now}"
+            bot_state["status"] = "آماده به کار ✅"
+            await manager.broadcast(bot_state)
+            
+            print(f"⏳ خواب ربات به مدت 5 دقیقه... ({now})")
+            # به جای time.sleep از نسخه async استفاده می‌کنیم تا وب‌سرور متوقف نشود
+            await asyncio.sleep(300) 
+            
         except Exception as e:
             bot_state["status"] = "خطا در پردازش ❌"
-            print(f"Error in main loop: {e}")
-            time.sleep(60)  # در صورت خطا، 1 دقیقه صبر کنید و دوباره تلاش کنید
+            await manager.broadcast(bot_state)
+            print(f"Error: {e}")
+            await asyncio.sleep(60)
 
 if __name__ == "__main__":
     execute_bot_loop()
