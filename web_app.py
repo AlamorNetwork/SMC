@@ -63,7 +63,26 @@ async def get_watchlist(db: AsyncSession = Depends(get_db)):
     active_symbols = [pair.symbol for pair in pairs]
     bot_state["active_pairs"] = active_symbols
     return {"watchlist": active_symbols}
-
+@app.post("/api/structure_history")
+async def get_structure_history(req: StructureRequest):
+    try:
+        from data_fetcher import DataFetcher
+        from market_structure import MarketStructureAnalyzer
+        
+        fetcher = DataFetcher()
+        analyzer = MarketStructureAnalyzer()
+        
+        # خواندن دیتا (ترجیحاً از فایلی که با اسکریپت دانلودر ساختی)
+        df_h4 = fetcher.get_candles(req.symbol.upper(), settings.TIMEFRAME_STRUCTURE, limit=req.limit)
+        
+        if df_h4 is None or len(df_h4) < 50:
+            return {"status": "error", "message": "دیتای کافی برای تحلیل ساختار یافت نشد."}
+            
+        # استخراج کل تایم‌لاین ساختاری
+        history = await asyncio.to_thread(analyzer.extract_historical_legs, df_h4)
+        return {"status": "success", "data": history}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 @app.post("/api/watchlist/add")
 async def add_to_watchlist(req: WatchlistRequest, db: AsyncSession = Depends(get_db)):
     symbol = req.symbol.upper()
