@@ -3,10 +3,6 @@ from settings import settings
 
 class ZoneDetector:
     def check_premium_discount(self, entry_price, main_leg, direction):
-        """
-        آموزش کد: این تابع لگ اصلی بازار را می‌گیرد و وسط آن را (نقطه ۵۰٪) محاسبه می‌کند.
-        برای خرید، قیمت باید در نیمه پایین (Discount) و برای فروش در نیمه بالا (Premium) باشد.
-        """
         if main_leg["start"] is None or main_leg["end"] is None:
             return False
             
@@ -19,37 +15,52 @@ class ZoneDetector:
         return False
 
     def is_mitigated(self, df, start_idx, ob_top, ob_bottom, direction):
-        """
-        آموزش کد: بررسی بکر بودن ناحیه.
-        ما بررسی را از 3 کندل بعد (start_idx + 3) آغاز می‌کنیم. 
-        چرا؟ چون کندل 1 خود OB است، کندل 2 کندل حرکت اصلی است (که معمولاً به OB چسبیده) 
-        و کندل 3 تاییدکننده FVG است. بازگشت به ناحیه (Mitigation) فقط بعد از این فاز معنا دارد.
-        """
-        # اگر تعداد کندل‌های بعد از OB کمتر از 3 تا باشد، یعنی هنوز بکر است
         if start_idx + 3 >= len(df):
             return False
             
         for i in range(start_idx + 3, len(df)):
             if direction == "Bullish":
-                # در لگ صعودی: آیا کف کندل‌های آینده به سقف اوردربلاک ما برخورد کرده است؟
                 if df['low'].iloc[i] <= ob_top:
                     return True
             else:
-                # در لگ نزولی: آیا سقف کندل‌های آینده به کف اوردربلاک ما برخورد کرده است؟
                 if df['high'].iloc[i] >= ob_bottom:
                     return True
-                    
         return False
 
-    def find_order_blocks(self, df_h4):
+    def is_smart_money_trap(self, df, ob_timestamp, ob_type, last_macro_low, last_macro_high):
         """
-        پیدا کردن اوردربلاک‌های معتبر با شروط هانت، FVG و قانون شدو.
+        این تابع بررسی می‌کند که آیا اوردربلاک درون نقدینگی‌های ماژور قرار دارد یا خیر.
         """
+        try:
+            ob_index = df.index.get_loc(ob_timestamp)
+            ob_row = df.iloc[ob_index]
+            
+            if ob_type == "Bullish" and last_macro_low is not None:
+                # اگر اوردربلاک بالاتر از نقدینگی اصلی شکل گرفته، تله است
+                if ob_row['low'] > last_macro_low:
+                    return True 
+                    
+            elif ob_type == "Bearish" and last_macro_high is not None:
+                if ob_row['high'] < last_macro_high:
+                    return True 
+        except:
+            pass
+            
+        return False
+
+    def find_order_blocks(self, df_h4, last_macro_low=None, last_macro_high=None):
         df = df_h4.copy()
         df['vol_ma20'] = df['volume'].rolling(window=20).mean()
         
         bullish_obs = []
         bearish_obs = []
+        
+        # در صورتی که ساختار ماژور پاس داده نشده بود، به صورت خودکار محاسبه شود
+        if last_macro_low is None or last_macro_high is None:
+            from market_structure import MarketStructureAnalyzer
+            _, temp_leg, _ = MarketStructureAnalyzer().analyze_structure(df_h4)
+            last_macro_low = temp_leg.get("last_macro_low")
+            last_macro_high = temp_leg.get("last_macro_high")
         
         for i in range(5, len(df) - 2):
             avg_vol = df['vol_ma20'].iloc[i]
@@ -60,7 +71,7 @@ class ZoneDetector:
             # --- Bullish OB ---
             if df['close'].iloc[i] < df['open'].iloc[i] and df['close'].iloc[i+1] > df['open'].iloc[i+1]:
                 has_fvg = df['low'].iloc[i+2] > df['high'].iloc[i]
-                swept_liquidity = df['low'].iloc[i] < df['low'].iloc[i-5:i].min()
+                swept_liquidity = df['low'].iloc[i] < df['low'].iloc[i-5:i].min() # حفظ هانت محلی ساختار
                 
                 if is_volume_spike and has_fvg and swept_liquidity:
                     body_size = df['open'].iloc[i] - df['close'].iloc[i]
@@ -69,14 +80,17 @@ class ZoneDetector:
                     entry_top = df['close'].iloc[i] if lower_wick > body_size else df['high'].iloc[i]
                     entry_bottom = df['low'].iloc[i]
                     note = "Wick OB" if lower_wick > body_size else "Standard OB"
+                    ob_timestamp = df.index[i]
                     
-                    # اضافه شدن بررسی Mitigated
+                    # 🚀 اضافه شدن فیلتر هوشمند تله نقدینگی (SMT)
+                    if self.is_smart_money_trap(df, ob_timestamp, "Bullish", last_macro_low, last_macro_high):
+                        continue
+                    
                     mitigated = self.is_mitigated(df, i, entry_top, entry_bottom, "Bullish")
                         
                     bullish_obs.append({
                         'top': entry_top, 'bottom': entry_bottom, 
-                        'is_mitigated': mitigated,
-                        'type': 'Bullish', 'note': note, 'timestamp': df.index[i]
+                        'is_mitigated': mitigated, 'type': 'Bullish', 'note': note, 'timestamp': ob_timestamp
                     })
                     
             # --- Bearish OB ---
@@ -91,14 +105,17 @@ class ZoneDetector:
                     entry_top = df['high'].iloc[i]
                     entry_bottom = df['close'].iloc[i] if upper_wick > body_size else df['low'].iloc[i]
                     note = "Wick OB" if upper_wick > body_size else "Standard OB"
+                    ob_timestamp = df.index[i]
                     
-                    # اضافه شدن بررسی Mitigated
+                    # 🚀 اضافه شدن فیلتر هوشمند تله نقدینگی (SMT)
+                    if self.is_smart_money_trap(df, ob_timestamp, "Bearish", last_macro_low, last_macro_high):
+                        continue
+                    
                     mitigated = self.is_mitigated(df, i, entry_top, entry_bottom, "Bearish")
                         
                     bearish_obs.append({
                         'top': entry_top, 'bottom': entry_bottom, 
-                        'is_mitigated': mitigated,
-                        'type': 'Bearish', 'note': note, 'timestamp': df.index[i]
+                        'is_mitigated': mitigated, 'type': 'Bearish', 'note': note, 'timestamp': ob_timestamp
                     })
                     
         return bullish_obs, bearish_obs
@@ -110,4 +127,4 @@ class ZoneDetector:
         if main_leg["direction"] == "Bullish":
             return main_leg["end"] - (diff * settings.FIB_OTE_HIGH), main_leg["end"] - (diff * settings.FIB_OTE_LOW)
         else:
-            return main_leg["end"] + (diff * settings.FIB_OTE_LOW), main_leg["end"] + (diff * settings.FIB_OTE_HIGH)
+            return main_leg["end"] + (diff * settings.FIB_OTE_LOW), main_leg["end"] + (diff * settings.FIB_OTE_HIGH)    
