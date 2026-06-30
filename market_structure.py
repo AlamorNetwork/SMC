@@ -36,24 +36,24 @@ class MarketStructureAnalyzer:
             if trend == 1:
                 if current_high > last_high_val:
                     last_high_val = current_high
-                    last_high_idx = i
+                    last_high_idx = df.index[i]
                 # اگر قیمت به اندازه ATR از سقف فاصله گرفت، یعنی یک سقف ماژور ثبت شده است
                 elif current_high < last_high_val - (current_atr * atr_multiplier):
-                    df.iloc[last_high_idx, df.columns.get_loc('macro_high')] = last_high_val
+                    df.loc[last_high_idx, 'macro_high'] = last_high_val
                     trend = -1
                     last_low_val = current_low
-                    last_low_idx = i
+                    last_low_idx = df.index[i]
                     
             # تشخیص سقف ماژور
             elif trend == -1:
                 if current_low < last_low_val:
                     last_low_val = current_low
-                    last_low_idx = i
+                    last_low_idx = df.index[i]
                 elif current_low > last_low_val + (current_atr * atr_multiplier):
-                    df.iloc[last_low_idx, df.columns.get_loc('macro_low')] = last_low_val
+                    df.loc[last_low_idx, 'macro_low'] = last_low_val
                     trend = 1
                     last_high_val = current_high
-                    last_high_idx = i
+                    last_high_idx = df.index[i]
                     
         return df
 

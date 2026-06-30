@@ -127,4 +127,4 @@ class ZoneDetector:
         if main_leg["direction"] == "Bullish":
             return main_leg["end"] - (diff * settings.FIB_OTE_HIGH), main_leg["end"] - (diff * settings.FIB_OTE_LOW)
         else:
-            return main_leg["end"] + (diff * settings.FIB_OTE_LOW), main_leg["end"] + (diff * settings.FIB_OTE_HIGH)    
+            return main_leg["end"] + (diff * settings.FIB_OTE_LOW), main_leg["end"] + (diff * settings.FIB_OTE_HIGH)
