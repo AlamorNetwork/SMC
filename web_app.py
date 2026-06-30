@@ -50,6 +50,9 @@ class BacktestRequest(BaseModel):
     symbol: str
     limit: int = 1000
 
+class StructureRequest(BaseModel):
+    symbol: str
+    limit: int = 10000
 @app.get("/", response_class=HTMLResponse)
 async def get_dashboard(request: Request):
     return templates.TemplateResponse(request=request, name="dashboard.html")
