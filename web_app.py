@@ -71,20 +71,29 @@ async def get_structure_history(req: StructureRequest):
     try:
         from data_fetcher import DataFetcher
         from market_structure import MarketStructureAnalyzer
+        from settings import settings # 👈 اطمینان از ایمپورت شدن تنظیمات
         
         fetcher = DataFetcher()
         analyzer = MarketStructureAnalyzer()
         
-        # خواندن دیتا (ترجیحاً از فایلی که با اسکریپت دانلودر ساختی)
+        print(f"⏳ در حال دریافت {req.limit} کندل برای {req.symbol}...")
         df_h4 = fetcher.get_candles(req.symbol.upper(), settings.TIMEFRAME_STRUCTURE, limit=req.limit)
         
         if df_h4 is None or len(df_h4) < 50:
+            print("❌ دیتای کافی از صرافی یا فایل یافت نشد.")
             return {"status": "error", "message": "دیتای کافی برای تحلیل ساختار یافت نشد."}
             
-        # استخراج کل تایم‌لاین ساختاری
         history = await asyncio.to_thread(analyzer.extract_historical_legs, df_h4)
+        print(f"✅ تعداد {len(history)} شکست ساختاری (BOS/CHoCH) پیدا شد.")
+        
+        # 🚀 رفع باگ تبدیل نشدن اعداد Numpy به JSON مرورگر
+        for item in history:
+            item['break_price'] = float(item['break_price'])
+            item['start_leg_price'] = float(item['start_leg_price'])
+            
         return {"status": "success", "data": history}
     except Exception as e:
+        print(f"❌ خطای پردازش نقشه ساختار: {e}")
         return {"status": "error", "message": str(e)}
 @app.post("/api/watchlist/add")
 async def add_to_watchlist(req: WatchlistRequest, db: AsyncSession = Depends(get_db)):
