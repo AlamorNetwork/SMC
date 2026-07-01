@@ -15,7 +15,7 @@ from shared_state import bot_state
 from settings import settings
 from backtester import SMCBacktester
 from main import execute_bot_loop  # 👈 اتصال مستقیم به موتور تحلیلگر ربات
-
+import threading
 # اجرای پس‌زمینه ربات همزمان با روشن شدن وب‌سایت
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,9 +24,21 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
         
     print("🚀 در حال راه‌اندازی موتور اصلی ربات در پس‌زمینه سرور...")
-    task = asyncio.create_task(execute_bot_loop())
+    
+    # 🔴 جادوی جدید: اجرای موتور لایو در یک فضای کاملاً ایزوله (Thread مجزا)
+    def start_bot_thread():
+        # ساخت یک مغز (Event Loop) جدید مخصوص ربات
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        # اجرای ربات
+        new_loop.run_until_complete(execute_bot_loop())
+        
+    # روشن کردن ربات در پس‌زمینه بدون درگیر کردن سایت
+    bot_thread = threading.Thread(target=start_bot_thread, daemon=True)
+    bot_thread.start()
+    
     yield
-    task.cancel()
+    # با خاموش شدن سرور، ربات هم متوقف می‌شود
 
 app = FastAPI(title="SMC Institutional Terminal", lifespan=lifespan)
 
