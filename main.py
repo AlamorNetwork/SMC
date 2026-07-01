@@ -45,40 +45,74 @@ async def execute_bot_loop():
                 
                 # ترکیب و مرتب‌سازی اوردربلاک‌ها برای ارسال به فرانت‌اند
                 # ترکیب و مرتب‌سازی اوردربلاک‌ها برای ارسال به فرانت‌اند
+                # ========================================================
+                # 🧠 پردازشگر چندگانه (Multi-Timeframe Processor) در حالت لایو
+                # ========================================================
                 all_obs = bullish_obs + bearish_obs
                 processed_obs = []
                 
+                # دریافت دیتای 15 دقیقه برای پیدا کردن نقطه ورود تک‌تیرانداز
+                df_m15 = fetcher.get_candles(symbol, settings.TIMEFRAME_ENTRY, limit=200)
+                bullish_m15_obs, bearish_m15_obs = detector.find_order_blocks(df_m15) if df_m15 is not None else ([], [])
+                
                 for ob in all_obs:
+                    # فاصله قیمت فعلی تا اوردربلاک H4
                     dist = current_price - ob['top'] if ob['type'] == 'Bullish' else ob['bottom'] - current_price
                     dist = abs(dist)
                     
-                    # محاسبه TP، SL و لوریج پیشنهادی
-                    if ob['type'] == 'Bullish':
-                        entry = ob['top']
-                        sl = ob['bottom']
-                        tp = entry + ((entry - sl) * 2) # ریوارد 2
-                    else:
-                        entry = ob['bottom']
-                        sl = ob['top']
-                        tp = entry - ((sl - entry) * 2) # ریوارد 2
-                        
-                    # محاسبه لوریج ایمن (فاصله استاپ تا نقطه ورود)
-                    sl_dist_pct = abs(entry - sl) / entry * 100
-                    safe_leverage = max(1, min(50, int(15 / sl_dist_pct))) if sl_dist_pct > 0 else 1
+                    # متغیرهای پیش‌فرض (در صورتی که تاییدیه M15 هنوز نیامده باشد)
+                    entry_price = ob['top'] if ob['type'] == 'Bullish' else ob['bottom']
+                    sl_price = ob['bottom'] if ob['type'] == 'Bullish' else ob['top']
+                    status_note = ob.get('note', 'در انتظار تاییدیه M15...')
                     
+                    # 🎯 جستجوی اوردربلاک 15 دقیقه‌ای (تاییدیه) داخل ناحیه 4 ساعته
+                    m15_found = False
+                    
+                    if ob['type'] == 'Bullish':
+                        # می‌گردیم دنبال جدیدترین اوردربلاک صعودی 15 دقیقه‌ای که داخل یا نزدیک ناحیه H4 ما ساخته شده باشد
+                        for m15_ob in reversed(bullish_m15_obs):
+                            if m15_ob['bottom'] >= (ob['bottom'] - (ob['bottom']*0.002)) and m15_ob['top'] <= (ob['top'] + (ob['top']*0.01)):
+                                # ورود تک‌تیرانداز پیدا شد!
+                                entry_price = m15_ob['top'] # ورود در لبه بالایی OB پانزده دقیقه
+                                buffer = m15_ob['bottom'] * 0.0015 # سپر محافظتی (گشاد کردن استاپ به مقدار کم)
+                                sl_price = m15_ob['bottom'] - buffer # استاپ زیر OB پانزده دقیقه + سپر
+                                status_note = "🎯 تاییدیه M15 صادر شد! (ورود بهینه)"
+                                m15_found = True
+                                break
+                                
+                        tp_price = entry_price + ((entry_price - sl_price) * 3) # ریوارد 1:3
+                        
+                    else: # Bearish
+                        for m15_ob in reversed(bearish_m15_obs):
+                            if m15_ob['top'] <= (ob['top'] + (ob['top']*0.002)) and m15_ob['bottom'] >= (ob['bottom'] - (ob['bottom']*0.01)):
+                                entry_price = m15_ob['bottom'] # ورود در لبه پایینی OB پانزده دقیقه
+                                buffer = m15_ob['top'] * 0.0015 
+                                sl_price = m15_ob['top'] + buffer 
+                                status_note = "🎯 تاییدیه M15 صادر شد! (ورود بهینه)"
+                                m15_found = True
+                                break
+                                
+                        tp_price = entry_price - ((sl_price - entry_price) * 3) # ریوارد 1:3
+
+                    # محاسبه لوریج ایمن بر اساس استاپ‌لاس جدید (فوق‌العاده بالا میره چون استاپ کوچیک شده!)
+                    sl_dist_pct = abs(entry_price - sl_price) / entry_price * 100
+                    safe_leverage = max(1, min(100, int(15 / sl_dist_pct))) if sl_dist_pct > 0 else 1
+                    
+                    # اضافه کردن به لیست پردازش‌شده برای نمایش در داشبورد
                     processed_obs.append({
                         "type": ob['type'],
-                        "top": round(ob['top'], 4),
-                        "bottom": round(ob['bottom'], 4),
-                        "tp": round(tp, 4),
-                        "sl": round(sl, 4),
+                        "top": round(entry_price, 4),      # در داشبورد Entry را نشان می‌دهد
+                        "bottom": round(entry_price, 4),   # یکسان با Top برای جلوگیری از خطای UI
+                        "tp": round(tp_price, 4),
+                        "sl": round(sl_price, 4),
                         "leverage": safe_leverage,
                         "is_mitigated": ob['is_mitigated'],
                         "distance": round(dist, 4),
                         "timestamp": str(ob['timestamp']),
-                        "note": ob['note']
+                        "note": status_note
                     })
                 
+                # مرتب‌سازی بر اساس نزدیکی قیمت به ناحیه
                 processed_obs = sorted(processed_obs, key=lambda x: x['distance'])
                 
                 status_msg = "در حال رصد بازار..."
